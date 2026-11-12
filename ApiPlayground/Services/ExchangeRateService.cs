@@ -17,7 +17,17 @@ public sealed record RateSnapshot(
 public static class ExchangeRateService
 {
     private const string Endpoint = "https://open.er-api.com/v6/latest/USD";
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(5) };
+    private static readonly HttpClient Http = new(new SocketsHttpHandler
+    {
+        ConnectTimeout = TimeSpan.FromSeconds(3),
+        PooledConnectionLifetime = TimeSpan.FromMinutes(10)
+    })
+    { Timeout = TimeSpan.FromSeconds(5) };
+
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(30);
+
+    // 单航班：并发首次换算不会同时打 N 次上游
+    private static readonly SemaphoreSlim Gate = new(1, 1);
 
     public static readonly string[] Codes =
         ["CNY", "USD", "EUR", "JPY", "GBP", "HKD", "TWD", "MOP", "KRW", "SGD", "AUD", "CAD", "CHF", "THB"];
@@ -59,30 +69,57 @@ public static class ExchangeRateService
         ["THB"] = 33.722639,
     };
 
-    private static RateSnapshot? _cache;
+    private static volatile RateSnapshot? _cache;
     private static DateTimeOffset _cacheAt = DateTimeOffset.MinValue;
     private static DateTimeOffset _lastFailure = DateTimeOffset.MinValue;
 
     public static async Task<RateSnapshot> GetAsync()
     {
-        if (_cache is not null && DateTimeOffset.UtcNow - _cacheAt < TimeSpan.FromMinutes(30))
-            return _cache;
+        if (TryGetCached(out var cached)) return cached;
 
         if (DateTimeOffset.UtcNow - _lastFailure < TimeSpan.FromMinutes(2))
             return Fallback("上游近期不可用，暂用内置快照");
 
+        await Gate.WaitAsync();
         try
         {
-            var snapshot = await FetchLiveAsync();
-            _cache = snapshot;
-            _cacheAt = DateTimeOffset.UtcNow;
-            return snapshot;
+            // 等锁期间可能已被别的请求填好
+            if (TryGetCached(out cached)) return cached;
+            if (DateTimeOffset.UtcNow - _lastFailure < TimeSpan.FromMinutes(2))
+                return Fallback("上游近期不可用，暂用内置快照");
+
+            try
+            {
+                var snapshot = await FetchLiveAsync();
+                _cache = snapshot;
+                _cacheAt = DateTimeOffset.UtcNow;
+                return snapshot;
+            }
+            catch
+            {
+                _lastFailure = DateTimeOffset.UtcNow;
+                return Fallback("上游汇率服务不可用或响应异常");
+            }
         }
-        catch
+        finally { Gate.Release(); }
+    }
+
+    /// <summary>启动时预热一次，把上游 1 秒级的往返开销挪到用户请求之外。</summary>
+    public static async Task WarmupAsync()
+    {
+        try { await GetAsync(); } catch { /* 预热失败不影响服务 */ }
+    }
+
+    private static bool TryGetCached(out RateSnapshot snapshot)
+    {
+        var hit = _cache;
+        if (hit is not null && DateTimeOffset.UtcNow - _cacheAt < CacheTtl)
         {
-            _lastFailure = DateTimeOffset.UtcNow;
-            return Fallback("上游汇率服务不可用或响应异常");
+            snapshot = hit;
+            return true;
         }
+        snapshot = null!;
+        return false;
     }
 
     private static async Task<RateSnapshot> FetchLiveAsync()
@@ -121,7 +158,8 @@ public static class ExchangeRateService
 
     private static RateSnapshot Fallback(string reason)
         => new(
-            new Dictionary<string, double>(FallbackRates, StringComparer.OrdinalIgnoreCase),
+            // 兜底快照是只读的，直接复用同一份字典，省掉每次降级时的整表复制
+            FallbackRates,
             "fallback",
             "内置快照 2026-11-12（非实时）",
             "本地内置参考快照",

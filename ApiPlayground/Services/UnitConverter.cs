@@ -100,7 +100,21 @@ public static class UnitConverter
             ExchangeRateService.Labels.Select(l => new UnitDef(l.Code.ToLowerInvariant(), l.Label)).ToArray()),
     ];
 
-    public static object List() => Categories.Select(c => new
+    public static object List() => CategoriesPayload;
+
+    // 类别与单位都是常量：启动时建索引、把清单序列化成一份，请求期只做字典查表
+    private static readonly Dictionary<string, UnitCategory> CategoryIndex =
+        Categories.ToDictionary(c => c.Id, c => c, StringComparer.OrdinalIgnoreCase);
+
+    private static readonly Dictionary<string, Dictionary<string, UnitDef>> UnitIndex =
+        Categories.ToDictionary(
+            c => c.Id,
+            c => c.Units.ToDictionary(u => u.Id, u => u, StringComparer.OrdinalIgnoreCase),
+            StringComparer.OrdinalIgnoreCase);
+
+    private static readonly UnitCategory CurrencyCategory = CategoryIndex["currency"];
+
+    private static readonly object CategoriesPayload = Categories.Select(c => new
     {
         id = c.Id,
         label = c.Label,
@@ -124,7 +138,7 @@ public static class UnitConverter
             || double.IsNaN(v) || double.IsInfinity(v))
             throw new ApiException("INVALID_VALUE", "value 必须是合法数字，例如 100 或 1234.56");
 
-        var cat = Categories.First(c => c.Id == "currency");
+        var cat = CurrencyCategory;
         var f = Find(cat, from, "from");
         var t = Find(cat, to, "to");
 
@@ -173,8 +187,9 @@ public static class UnitConverter
             || double.IsNaN(v) || double.IsInfinity(v))
             throw new ApiException("INVALID_VALUE", "value 必须是合法数字，例如 1.8 或 -40");
 
-        var cat = Categories.FirstOrDefault(c => c.Id.Equals(category, StringComparison.OrdinalIgnoreCase))
-                  ?? throw new ApiException("INVALID_CATEGORY", $"未知换算类别「{category}」，请用 /api/units/categories 查看");
+        if (string.IsNullOrWhiteSpace(category)
+            || !CategoryIndex.TryGetValue(category, out var cat))
+            throw new ApiException("INVALID_CATEGORY", $"未知换算类别「{category}」，请用 /api/units/categories 查看");
         if (cat.Id == "currency")
             throw new ApiException("UNSUPPORTED_CATEGORY", "汇率换算需走异步数据源路径");
         var f = Find(cat, from, "from");
@@ -210,8 +225,9 @@ public static class UnitConverter
     {
         if (string.IsNullOrWhiteSpace(id))
             throw new ApiException("MISSING_UNIT", $"请提供 {param} 参数");
-        return cat.Units.FirstOrDefault(u => u.Id.Equals(id, StringComparison.OrdinalIgnoreCase))
-               ?? throw new ApiException("INVALID_UNIT",
-                   $"类别「{cat.Id}」中不存在单位「{id}」。可用：{string.Join(", ", cat.Units.Select(u => u.Id))}");
+        if (UnitIndex.TryGetValue(cat.Id, out var units) && units.TryGetValue(id.Trim(), out var hit))
+            return hit;
+        throw new ApiException("INVALID_UNIT",
+            $"类别「{cat.Id}」中不存在单位「{id}」。可用：{string.Join(", ", cat.Units.Select(u => u.Id))}");
     }
 }

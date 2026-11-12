@@ -149,6 +149,7 @@ input::placeholder{color:var(--ink3)}
 .res-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:13px;font-size:11.5px;color:var(--ink2)}
 .pill{display:inline-block;padding:1px 8px;border:1px solid var(--line);border-radius:5px;font-size:11px;color:var(--ink2);background:var(--paper);font-variant-numeric:tabular-nums}
 .pill.ok{border-color:var(--accent-line);color:var(--accent);background:var(--accent-soft)}
+.pill.off{color:var(--ink3)}
 .result{margin-top:8px;background:var(--code);border:1px solid var(--line);border-radius:6px;padding:12px 15px;font-family:var(--mono);font-size:11.5px;line-height:1.7;color:#4B555C;max-height:330px;overflow:auto;white-space:pre-wrap;word-break:break-word}
 .result.empty{color:var(--ink3)}
 .j-key{color:var(--accent);font-weight:600}
@@ -212,7 +213,10 @@ details .result{margin-bottom:16px}
 <div class="toolbar">
 <span class="lead">共 <b id="tb-count">11</b> 组接口 · 填写参数后点击「发送请求」即可调试</span>
 <span class="pill" id="tb-status">连接中…</span>
+<span class="pill" id="svc-status">检测服务中…</span>
 <span class="spacer"></span>
+<button type="button" id="btn-start" onclick="controlStart(this)">启动服务</button>
+<button type="button" id="btn-stop" onclick="controlStop(this)">停止服务</button>
 <button type="button" onclick="initData()">刷新辅助数据</button>
 </div>
 
@@ -505,6 +509,67 @@ var SPECS = {
 
 var calls = 0;
 
+/* ---------- 服务启动 / 停止（由常驻控制器提供 /control/*） ---------- */
+async function ctlStatus(){
+  try {
+    var r = await fetch('/control/status', {cache:'no-store'});
+    return await r.json();
+  } catch (e) { return null; }
+}
+
+var _ctlSig = '';
+function paintCtl(s){
+  var badge = $('svc-status'), start = $('btn-start'), stop = $('btn-stop');
+  // 轮询每 5 秒一次，状态没变就不碰 DOM（避免无谓的样式重算与重绘）
+  var sig = s ? (s.running + '|' + !!s.crashed + '|' + s.pid + '|' + (s.message || '')) : 'disconnected';
+  if (sig === _ctlSig) return;
+  _ctlSig = sig;
+  if (!s) {
+    badge.textContent = '控制器未连接'; badge.className = 'pill';
+    start.disabled = true; stop.disabled = true;
+    return;
+  }
+  badge.textContent = s.running ? '服务运行中' : (s.crashed ? '服务异常退出' : '服务已停止');
+  badge.className = 'pill' + (s.running ? ' ok' : ' off');
+  badge.title = s.running
+    ? 'PID ' + s.pid + ' · 已运行 ' + s.uptimeSeconds + ' 秒 · 后端 ' + s.backendUrl
+    : (s.message || '点击「启动服务」拉起后端');
+  start.disabled = !!s.running;
+  stop.disabled = !s.running;
+}
+
+async function pollCtl(expect, timeoutMs){
+  var t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    var s = await ctlStatus();
+    if (s && s.running === expect) return s;
+    await new Promise(function(res){ setTimeout(res, 400); });
+  }
+  return await ctlStatus();
+}
+
+async function controlStart(btn){
+  var old = btn.textContent;
+  btn.disabled = true; btn.textContent = '启动中…';
+  try {
+    await fetch('/control/start', {method:'POST'});
+    var s = await pollCtl(true, 20000);
+    paintCtl(s);
+    if (s && s.running) await initData();   // 后端就绪后重新填充城市/时区/单位下拉
+  } catch (e) { paintCtl(await ctlStatus()); }
+  finally { btn.disabled = false; btn.textContent = old; _ctlSig = ''; paintCtl(await ctlStatus()); }
+}
+
+async function controlStop(btn){
+  var old = btn.textContent;
+  btn.disabled = true; btn.textContent = '停止中…';
+  try {
+    await fetch('/control/stop', {method:'POST'});
+    paintCtl(await pollCtl(false, 12000));
+  } catch (e) { paintCtl(await ctlStatus()); }
+  finally { btn.disabled = false; btn.textContent = old; _ctlSig = ''; paintCtl(await ctlStatus()); }
+}
+
 /* ---------- 每个请求各自的「最终结果」区 ---------- */
 function fmt(n){ return (n === null || n === undefined) ? '—' : String(n); }
 
@@ -536,7 +601,7 @@ function summarize(name, d){
   if (!d) return '· 接口未返回数据';
   try {
     switch (name) {
-      case 'health':  return '服务正常 · ' + fmt(d.framework) + ' / CLR ' + fmt(d.runtime) + ' · ' + fmt(d.endpointCount) + ' 个端点 · ' + fmt(d.listenUrl);
+      case 'health':  return '服务正常 · ' + fmt(d.framework) + ' / CLR ' + fmt(d.runtime) + ' · ' + fmt(d.endpointCount) + ' 个端点 · ' + fmt(d.publicUrl || d.listenUrl);
       case 'index':   return '共 ' + d.length + ' 组接口 · ' + Array.from(new Set(d.map(function(x){ return x.section; }))).join(' / ');
       case 'cities':  return '内置 ' + d.length + ' 个城市 · ' + d.slice(0, 3).map(function(c){ return c.name; }).join(' / ') + ' …';
       case 'weather': return fmt(d.city) + (d.region ? '（' + d.region + '）' : '') + ' ' + fmt(d.temperatureC) + '℃ · '
@@ -616,7 +681,10 @@ async function run(name, silent){
       res.classList.remove('empty');
       res.innerHTML = highlight(json);
       if (name === 'weather' && ok && json.data) {
-        $('stat-weather').textContent = json.data.source === 'live' ? '实时' : '兜底';
+        var w = json.data;
+        $('stat-weather').textContent = w.source === 'live'
+          ? (w.cached ? '实时·缓存' : '实时')
+          : '兜底';
       }
       renderFinal(name, json);
     }
@@ -752,6 +820,12 @@ initFinalBoxes();
 initNav();
 initTop();
 initData();
+ctlStatus().then(paintCtl);
+// 页面在后台时不必轮询；切回来立刻补一次
+setInterval(function(){ if (!document.hidden) ctlStatus().then(paintCtl); }, 5000);
+document.addEventListener('visibilitychange', function(){
+  if (!document.hidden) ctlStatus().then(paintCtl);
+});
 </script>
 </body>
 </html>

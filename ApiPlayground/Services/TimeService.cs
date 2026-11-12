@@ -44,7 +44,18 @@ public static class TimeService
         ["UTC"] = "UTC",
     };
 
-    public static object ListZones() => Zones.Select(z => new { id = z.Id, label = z.Label }).ToArray();
+    public static object ListZones() => ZonesPayload;
+
+    // 常量数据预建索引：解析时区、取中文标签都是字典查表，不再逐条扫数组
+    private static readonly Dictionary<string, string> LabelIndex =
+        Zones.ToDictionary(z => z.Id, z => z.Label, StringComparer.OrdinalIgnoreCase);
+
+    private static readonly object ZonesPayload =
+        Zones.Select(z => new { id = z.Id, label = z.Label }).ToArray();
+
+    // TimeZoneInfo 解析结果缓存（含 Windows ID 兜底与中文标签匹配的结果）
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, TimeZoneInfo> ZoneCache =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public static object Now(string? tz)
     {
@@ -128,13 +139,19 @@ public static class TimeService
     private static TimeZoneInfo Resolve(string? id)
     {
         var key = string.IsNullOrWhiteSpace(id) ? "Asia/Shanghai" : id.Trim();
-        if (TimeZoneInfo.TryFindSystemTimeZoneById(key, out var tz)) return tz;
-        if (WindowsIds.TryGetValue(key, out var win)
-            && TimeZoneInfo.TryFindSystemTimeZoneById(win, out tz)) return tz;
-        var byLabel = Zones.FirstOrDefault(z => z.Label.Contains(key, StringComparison.OrdinalIgnoreCase));
-        if (byLabel is not null && TimeZoneInfo.TryFindSystemTimeZoneById(byLabel.Id, out tz)) return tz;
-        throw new ApiException("INVALID_TIMEZONE",
-            $"无法识别时区「{key}」。请用 /api/time/zones 查看可用时区（IANA 标识，如 Asia/Shanghai）。");
+        if (ZoneCache.TryGetValue(key, out var cached)) return cached;
+
+        if (!TimeZoneInfo.TryFindSystemTimeZoneById(key, out var tz)
+            && !(WindowsIds.TryGetValue(key, out var win) && TimeZoneInfo.TryFindSystemTimeZoneById(win, out tz)))
+        {
+            var byLabel = Zones.FirstOrDefault(z => z.Label.Contains(key, StringComparison.OrdinalIgnoreCase));
+            if (byLabel is null || !TimeZoneInfo.TryFindSystemTimeZoneById(byLabel.Id, out tz))
+                throw new ApiException("INVALID_TIMEZONE",
+                    $"无法识别时区「{key}」。请用 /api/time/zones 查看可用时区（IANA 标识，如 Asia/Shanghai）。");
+        }
+
+        ZoneCache[key] = tz;
+        return tz;
     }
 
     private static DateTimeOffset ParseDateTime(string raw, TimeZoneInfo zone)
@@ -157,7 +174,7 @@ public static class TimeService
     }
 
     private static string LabelOf(string id)
-        => Zones.FirstOrDefault(z => z.Id.Equals(id, StringComparison.OrdinalIgnoreCase))?.Label ?? id;
+        => LabelIndex.TryGetValue(id, out var label) ? label : id;
 
     private static string OffsetText(TimeSpan o)
         => (o < TimeSpan.Zero ? "-" : "+")

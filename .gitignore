@@ -1,16 +1,23 @@
-# .NET build output
-bin/
-obj/
-[Dd]ebug/
-[Rr]elease/
-x64/
-x86/
-[Aa][Rr][Mm]/
-[Aa][Rr][Mm]64/
-artifacts/
-TestResults/
+# ---------- .NET 构建输出 ----------
+**/bin/
+**/obj/
+**/[Dd]ebug/
+**/[Rr]elease/
+**/x64/
+**/x86/
+**/[Aa][Rr][Mm]/
+**/[Aa][Rr][Mm]64/
+**/artifacts/
+**/TestResults/
 
-# IDE / editor
+# ---------- 发布产物 ----------
+dist/
+publish/
+*.exe
+*.pdb
+*.dll.config
+
+# ---------- 工具与工作区 ----------
 .vs/
 .vscode/
 .idea/
@@ -18,20 +25,11 @@ TestResults/
 *.userosscache
 *.suo
 *.userprefs
+.workbuddy/
 
-# NuGet / restore
-*.nupkg
-*.snupkg
-project.lock.json
-project.fragment.lock.json
-
-# OS / misc
-.DS_Store
-Thumbs.db
+# ---------- 运行期杂项 ----------
 *.log
-*.pidb
-*.svclog
-*.scc
-
-# Local-only configuration
-appsettings.Development.json
+*.tmp
+preview-*.png
+_build_test.log
+_check_*.py
