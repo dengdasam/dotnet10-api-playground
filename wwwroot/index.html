@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>.NET 10 API 调试台 · 双栏文档站</title>
+<!--
+  沿用「双栏文档站」主题（2026-11-10 用户指定）：238px sticky 侧栏 + 内容区；
+  冷调低饱和、全无衬线、单主色 #3B5A6A、细边框、5~6px 圆角、无渐变无阴影。
+  本页为单文件零依赖静态页，由 ASP.NET Core 静态文件中间件托管。
+-->
+<style>
+:root{
+  --bg:#F7F9FA; --paper:#FFFFFF; --ink:#22272B; --ink2:#66727B; --ink3:#94A0A8;
+  --line:#E2E7EB; --line2:#EDF0F3; --code:#F5F7F9;
+  --accent:#3B5A6A; --accent-soft:#EAF0F3; --accent-line:#C9D6DE;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.72;-webkit-font-smoothing:antialiased}
+.layout{display:flex;align-items:flex-start;max-width:1320px;margin:0 auto;min-height:100vh}
+
+.sidebar{position:sticky;top:0;flex:0 0 238px;width:238px;height:100vh;overflow-y:auto;background:var(--paper);border-right:1px solid var(--line);padding:26px 18px 22px;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:9px;margin-bottom:26px}
+.brand .sq{width:22px;height:22px;border-radius:5px;background:var(--accent);flex:0 0 auto}
+.brand .t{font-size:13px;font-weight:600;letter-spacing:-.01em}
+.brand .s{font-size:11px;color:var(--ink3)}
+.nav-label{font-size:11px;font-weight:600;letter-spacing:.1em;color:var(--ink3);margin:0 0 9px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:baseline;gap:9px;text-decoration:none;color:var(--ink2);font-size:12.5px;padding:7px 9px;border-radius:5px;border-left:2px solid transparent;transition:background .15s,color .15s,border-color .15s}
+.nav a span{font-size:11px;color:var(--ink3);font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.nav a:hover{background:var(--accent-soft);color:var(--accent)}
+.nav a.on{background:var(--accent-soft);color:var(--accent);border-left-color:var(--accent);font-weight:600}
+.nav a.on span{color:var(--accent)}
+.side-rule{height:1px;background:var(--line);margin:22px 0 18px}
+.side-block{margin-bottom:20px}
+.side-block .k{font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--ink3);margin-bottom:8px}
+.side-block .row{display:flex;justify-content:space-between;font-size:12px;color:var(--ink2);padding:3px 0}
+.side-block .row b{font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums}
+.side-status{background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:6px;padding:9px 11px;font-size:11.5px;color:var(--accent);line-height:1.6;margin-bottom:18px}
+.side-foot{margin-top:auto;font-size:11px;color:var(--ink3);line-height:1.7;border-top:1px solid var(--line);padding-top:14px}
+
+.content{flex:1;min-width:0;max-width:960px;padding:38px 40px 76px}
+.masthead{padding-bottom:22px;margin-bottom:24px;border-bottom:1px solid var(--line)}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.16em;color:var(--accent);margin-bottom:11px}
+h1{font-family:var(--sans);font-size:29px;font-weight:600;letter-spacing:-.025em;line-height:1.3;margin:0 0 9px}
+.masthead .meta{color:var(--ink2);font-size:12.5px;margin:0}
+
+.notice{background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:6px;padding:14px 17px;margin-bottom:24px;font-size:12.5px;color:var(--ink2);line-height:1.75}
+.notice b{color:var(--accent);font-weight:600}
+
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:26px}
+.stat{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:14px 15px 15px}
+.stat .n{font-family:var(--sans);font-size:28px;font-weight:600;line-height:1.2;letter-spacing:-.035em;color:var(--ink)}
+.stat .l{color:var(--ink2);font-size:11.5px;margin-top:4px}
+
+.toolbar{position:sticky;top:12px;z-index:5;display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:10px 14px;margin-bottom:26px}
+.toolbar .lead{font-size:12.5px;color:var(--ink2)}
+.toolbar .lead b{font-family:var(--sans);font-size:15px;font-weight:600;color:var(--accent);margin:0 3px}
+.toolbar .spacer{flex:1}
+
+.sec{scroll-margin-top:76px;margin:36px 0 14px;display:flex;align-items:center;gap:11px;padding-bottom:11px;border-bottom:1px solid var(--line)}
+.sec .num{font-size:11px;font-weight:600;color:var(--ink3);letter-spacing:.08em;flex:0 0 auto;font-variant-numeric:tabular-nums}
+.sec h2{font-family:var(--sans);font-size:17px;font-weight:600;letter-spacing:-.015em;margin:0}
+.tag{font-size:11px;padding:2px 9px;border:1px solid var(--line);border-radius:5px;margin-left:auto;color:var(--ink2);background:var(--paper);white-space:nowrap}
+
+.item{position:relative;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:16px 19px 17px;margin-bottom:10px;transition:background .15s,border-color .15s}
+.item.picked{background:#F8FAFB;border-color:var(--accent-line)}
+.item h3{font-family:var(--sans);font-size:15px;font-weight:600;letter-spacing:-.01em;margin:0 0 9px}
+.item h3 .idx{font-size:11px;font-weight:600;color:var(--ink3);margin-right:10px;letter-spacing:.06em;font-variant-numeric:tabular-nums}
+.item.picked h3 .idx{color:var(--accent)}
+.note{color:var(--ink3);font-size:11.5px;font-weight:400}
+.path{display:block;font-family:var(--mono);font-size:11.5px;line-height:1.6;background:var(--code);border:1px solid var(--line);border-radius:5px;padding:6px 10px;margin:7px 0;word-break:break-all;color:#4B555C}
+.why{color:var(--ink2);font-size:12.5px;margin:9px 0 12px}
+code{font-family:var(--mono);font-size:11.5px;background:var(--code);padding:1px 5px;border-radius:3px;color:#4B555C}
+.cmdrow{display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding-top:11px;border-top:1px solid var(--line2)}
+.pick{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink2);cursor:pointer;user-select:none;margin-right:auto}
+.pick input{accent-color:var(--accent);width:14px;height:14px;cursor:pointer}
+button{font:inherit;font-size:11.5px;letter-spacing:.01em;padding:5px 12px;border:1px solid var(--line);background:transparent;border-radius:5px;cursor:pointer;color:var(--ink2);transition:all .15s}
+button:hover:not(:disabled){border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primary{border-color:var(--accent);color:var(--accent)}
+button.primary:hover:not(:disabled){background:var(--accent);color:#fff}
+
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--paper)}
+table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:680px}
+th,td{text-align:left;padding:11px 13px;border-bottom:1px solid var(--line2);vertical-align:top}
+th{font-size:11px;font-weight:600;letter-spacing:.05em;color:var(--ink2);background:#F7F9FA}
+tr:last-child td{border-bottom:none}
+td b{font-weight:600;color:var(--ink)}
+
+details{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:0 18px;margin-bottom:8px}
+summary{list-style:none;cursor:pointer;font-size:13px;font-weight:500;padding:13px 0;color:var(--ink)}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"+";display:inline-block;width:17px;font-family:var(--mono);color:var(--ink3);font-size:14px}
+details[open] summary::before{content:"−"}
+details[open] summary{border-bottom:1px solid var(--line2)}
+details ul{margin:12px 0 14px;padding-left:22px;color:var(--ink2);font-size:12.5px}
+details li{margin-bottom:6px}
+
+pre{background:var(--code);border:1px solid var(--line);border-radius:6px;padding:15px 17px;overflow-x:auto;font-family:var(--mono);font-size:11.5px;line-height:1.75;color:#4B555C;margin:0 0 14px}
+.callout{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:14px 17px;font-size:12.5px;color:var(--ink2)}
+.callout b{color:var(--accent)}
+
+.foot{margin-top:42px;padding-top:16px;border-top:1px solid var(--line);color:var(--ink3);font-size:11.5px;line-height:1.8}
+.foot code{font-size:11px}
+
+.to-top{position:fixed;right:26px;bottom:26px;z-index:20;display:flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--accent);font-size:11.5px;letter-spacing:.01em;cursor:pointer;opacity:0;visibility:hidden;transform:translateY(6px);transition:opacity .18s,transform .18s,visibility .18s,border-color .15s,background .15s}
+.to-top.show{opacity:1;visibility:visible;transform:none}
+.to-top:hover{border-color:var(--accent);background:var(--accent-soft)}
+.to-top svg{width:12px;height:12px;display:block;flex:0 0 auto}
+.to-top:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:900px){.to-top{right:14px;bottom:14px}}
+
+@media (max-width:900px){
+  .layout{flex-direction:column}
+  .sidebar{position:static;width:100%;height:auto;flex:none;border-right:none;border-bottom:1px solid var(--line);padding:16px 18px}
+  .brand{margin-bottom:14px}
+  .nav{flex-direction:row;flex-wrap:wrap;gap:4px}
+  .nav a{border-left:none;border-bottom:2px solid transparent;border-radius:4px}
+  .nav a.on{border-left:none;border-bottom-color:var(--accent)}
+  .side-rule,.side-block,.side-status,.side-foot{display:none}
+  .content{padding:26px 18px 60px;max-width:none}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .sec{scroll-margin-top:70px}
+  h1{font-size:25px}
+}
+@media print{
+  body{background:#fff}.sidebar{display:none}.content{padding:0;max-width:none}
+  .toolbar,button,.pick{display:none!important}
+  .item,details,.stat,.table-wrap{break-inside:avoid}
+}
+
+/* ---- 扩展：调试表单与结果区（沿用主题配色，不引入彩色分级） ---- */
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field label{font-size:11px;color:var(--ink2);font-weight:600;letter-spacing:.04em}
+input,select,textarea{font:inherit;font-size:12.5px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:5px;padding:7px 10px;width:100%;outline:none;transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+textarea{resize:vertical;min-height:56px;font-family:var(--mono);font-size:12px}
+input::placeholder{color:var(--ink3)}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:11px;margin:12px 0}
+.form-grid .full{grid-column:1/-1}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.chips button{font-size:11px;padding:3px 9px}
+.table-wrap{margin-bottom:12px}
+.table-wrap .path{margin:0;padding:3px 7px;border:none;background:transparent}
+.res-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:13px;font-size:11.5px;color:var(--ink2)}
+.pill{display:inline-block;padding:1px 8px;border:1px solid var(--line);border-radius:5px;font-size:11px;color:var(--ink2);background:var(--paper);font-variant-numeric:tabular-nums}
+.pill.ok{border-color:var(--accent-line);color:var(--accent);background:var(--accent-soft)}
+.result{margin-top:8px;background:var(--code);border:1px solid var(--line);border-radius:6px;padding:12px 15px;font-family:var(--mono);font-size:11.5px;line-height:1.7;color:#4B555C;max-height:330px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.result.empty{color:var(--ink3)}
+.j-key{color:var(--accent);font-weight:600}
+.j-num{color:var(--ink);font-weight:600}
+.j-lit{color:var(--ink2);font-style:italic}
+details .res-head{margin-top:11px}
+details .result{margin-bottom:16px}
+.final-box{background:var(--paper);border:1px solid var(--accent-line);border-radius:6px;padding:12px 15px;margin-top:10px;font-size:14px;font-weight:600;line-height:1.65;color:var(--ink);word-break:break-word}
+.final-box::before{content:"最终结果";display:block;font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--accent);margin-bottom:5px}
+.final-box.empty{color:var(--ink3);font-weight:400;border-style:dashed;border-color:var(--line)}
+.final-box.empty::before{color:var(--ink3)}
+.final-box.fail{background:#F8FAFB;border-color:var(--line)}
+.final-box.fail::before{color:var(--ink2)}
+@media print{.res-head,.chips,.form-grid{display:none!important}}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<aside class="sidebar">
+<div class="brand"><div class="sq"></div><div><div class="t">API 调试台</div><div class="s">.NET 10 · Minimal API</div></div></div>
+<div class="nav-label">目录</div>
+<nav class="nav">
+<a href="#sec1" class="on"><span>01</span>概览与接口清单</a>
+<a href="#sec2"><span>02</span>天气查询</a>
+<a href="#sec3"><span>03</span>表达式计算器</a>
+<a href="#sec4"><span>04</span>时间与时区</a>
+<a href="#sec5"><span>05</span>单位换算与汇率</a>
+<a href="#sec6"><span>06</span>响应契约与调用方式</a>
+</nav>
+<div class="side-rule"></div>
+<div class="side-block">
+<div class="k">概况</div>
+<div class="row"><span>已注册端点</span><b id="side-endpoints">12</b></div>
+<div class="row"><span>运行时</span><b>.NET 10</b></div>
+<div class="row"><span>监听端口</span><b>5188</b></div>
+<div class="row"><span>第三方包</span><b>0</b></div>
+</div>
+<div class="side-status">统一响应包装 · 开放访问<br>天气断网时自动降级</div>
+<div class="side-foot">数据来源：Open-Meteo / 本地确定性模拟<br>零 NuGet 依赖 · 单文件静态页面</div>
+</aside>
+
+<main class="content">
+
+<header class="masthead">
+<div class="eyebrow">本地服务 · 交互式 API 文档</div>
+<h1>.NET 10 API 调试台</h1>
+<p class="meta">2026-11-12 &nbsp;·&nbsp; Minimal API &nbsp;·&nbsp; 12 个端点 &nbsp;·&nbsp; 零第三方依赖 &nbsp;·&nbsp; 端口 5188</p>
+</header>
+
+<div class="notice"><b>所有接口统一返回信封结构</b> <code>{ success, data, error, elapsedMs, timestamp }</code>，参数错误也以 HTTP 200 + <code>error</code> 字段表达。<br>天气优先读取 Open-Meteo 实时观测；上游不可用时自动降级为本地模拟数据，返回值中的 <code>source</code> 会标明 <code>live</code> 或 <code>fallback</code>，页面与接口始终可用。</div>
+
+<div class="stats">
+<div class="stat"><div class="n" id="stat-endpoints">12</div><div class="l">已注册端点</div></div>
+<div class="stat"><div class="n" id="stat-runtime">10.0</div><div class="l">运行时版本</div></div>
+<div class="stat"><div class="n" id="stat-weather">待查</div><div class="l">天气数据源</div></div>
+<div class="stat"><div class="n" id="stat-calls">0</div><div class="l">本次会话调用</div></div>
+<div class="stat"><div class="n" id="stat-last">—</div><div class="l">最近一次耗时</div></div>
+</div>
+
+<div class="toolbar">
+<span class="lead">共 <b id="tb-count">11</b> 组接口 · 填写参数后点击「发送请求」即可调试</span>
+<span class="pill" id="tb-status">连接中…</span>
+<span class="spacer"></span>
+<button type="button" onclick="initData()">刷新辅助数据</button>
+</div>
+
+<div class="sec" id="sec1"><span class="num">01</span><h2>概览与接口清单</h2><span class="tag">服务自描述</span></div>
+
+<div class="table-wrap">
+<table>
+<tr><th style="width:12%">方法</th><th style="width:33%">路径</th><th style="width:10%">分组</th><th>说明</th></tr>
+<tbody id="ep-table"></tbody>
+</table>
+</div>
+
+<div class="item">
+<h3><span class="idx">01</span>服务健康检查 <span class="note">GET</span></h3>
+<span class="path">GET /api/health</span>
+<div class="why">返回运行时版本、监听地址、已注册端点数与服务器时间，可直接用于探活。</div>
+<div class="cmdrow"><span class="note">无需参数</span><button type="button" onclick="copyCurl('health', this)">复制 cURL</button><button type="button" class="primary" onclick="run('health')">发送请求</button></div>
+<div class="res-head"><span class="pill" id="pill-health">尚未调用</span><span class="note" id="meta-health"></span></div>
+<pre class="result empty" id="res-health">点击「发送请求」查看响应。</pre>
+</div>
+
+<div class="item">
+<h3><span class="idx">02</span>接口清单原始响应 <span class="note">GET</span></h3>
+<span class="path">GET /api</span>
+<div class="why">上表即由该接口动态渲染。返回每条记录的方法、路径、分组与说明。</div>
+<div class="cmdrow"><span class="note">无需参数</span><button type="button" onclick="copyCurl('index', this)">复制 cURL</button><button type="button" class="primary" onclick="run('index')">发送请求</button></div>
+<div class="res-head"><span class="pill" id="pill-index">尚未调用</span><span class="note" id="meta-index"></span></div>
+<pre class="result empty" id="res-index">点击「发送请求」查看响应。</pre>
+</div>
+
+<div class="sec" id="sec2"><span class="num">02</span><h2>天气查询</h2><span class="tag">实时 / 离线兜底</span></div>
+
+<div class="item">
+<h3><span class="idx">03</span>按中文城市名查询实时天气 <span class="note">GET</span></h3>
+<span class="path">GET /api/weather?city=宁波</span>
+<div class="why">内置城市表命中时直接取经纬度，跳过地理编码；任意城市名会先走 Open-Meteo 地理编码。响应包含温度、体感、湿度、降水、风速、WMO 天气码与中文描述。</div>
+<div class="form-grid">
+<div class="field"><label for="w-city">内置城市（下拉）</label><select id="w-city"></select></div>
+<div class="field"><label for="w-custom">或输入任意城市名（优先）</label><input id="w-custom" placeholder="如：苏州 / Tokyo，留空则用下拉值"></div>
+</div>
+<div class="cmdrow"><span class="note">自定义输入非空时覆盖下拉选择</span><button type="button" onclick="copyCurl('weather', this)">复制 cURL</button><button type="button" class="primary" onclick="run('weather')">发送请求</button></div>
+<div class="res-head"><span class="pill" id="pill-weather">尚未调用</span><span class="note" id="meta-weather"></span></div>
+<pre class="result empty" id="res-weather">点击「发送请求」查看响应。</pre>
+</div>
+
+<details>
+<summary>内置城市表 / WMO 天气码 / 降级策略</summary>
+<ul>
+<li>内置 25 个中文城市（含广州、来宾、宁波、北海、湛江、防城港等），完整列表由 <code>/api/weather/cities</code> 返回，页面下拉即由它填充。</li>
+<li>WMO 天气码已转中文：0 晴、1~3 晴到阴、45/48 雾、61/63/65 小到大雨、71~75 雪、80~82 阵雨、95~99 雷阵雨。</li>
+<li>上游 4 秒超时或返回异常时降级；降级数据按「城市名 + UTC 小时」生成，同一小时内结果稳定可复现。连续失败后 2 分钟内抑制重试，避免每次请求都空等超时。</li>
+<li>降级响应的 <code>source</code> 为 <code>fallback</code>，<code>note</code> 会写明降级原因，便于排查网络。</li>
+</ul>
+<button type="button" onclick="run('cities')">查看 /api/weather/cities 原始响应</button>
+<div class="res-head"><span class="pill" id="pill-cities">尚未调用</span><span class="note" id="meta-cities"></span></div>
+<pre class="result empty" id="res-cities">点击上方按钮查看响应。</pre>
+</details>
+
+<div class="sec" id="sec3"><span class="num">03</span><h2>表达式计算器</h2><span class="tag">POST / GET</span></div>
+
+<div class="item">
+<h3><span class="idx">04</span>数学表达式求值 <span class="note">POST</span></h3>
+<span class="path">POST /api/calculator &nbsp;&nbsp; body: { "expression": "1+2*(3-4)/5" }</span>
+<div class="why">手写递归下降解析器，不执行任意代码、不引用第三方包。支持括号、四则、右结合幂运算、一元正负号、科学计数法与常用函数，参数错误返回明确中文提示。</div>
+<div class="chips">
+<button type="button" onclick="setExpr('1+2*(3-4)/5')">四则混合</button>
+<button type="button" onclick="setExpr('2^3^2')">幂右结合</button>
+<button type="button" onclick="setExpr('sqrt(9)+pow(2,10)')">函数</button>
+<button type="button" onclick="setExpr('sin(rad(30))*2')">角度</button>
+<button type="button" onclick="setExpr('pi*e+1.5e2')">常量与科学计数</button>
+<button type="button" onclick="setExpr('1/0')">错误演示：除零</button>
+<button type="button" onclick="setExpr('sqrt(-1)')">错误演示：定义域</button>
+</div>
+<div class="form-grid">
+<div class="field full"><label for="c-expr">表达式（点击上方示例会自动发送）</label><input id="c-expr" value="1+2*(3-4)/5" spellcheck="false"></div>
+</div>
+<div class="cmdrow"><span class="note">也支持 GET /api/calculator?expression=...</span><button type="button" onclick="copyCurl('calc', this)">复制 cURL</button><button type="button" class="primary" onclick="run('calc')">发送请求</button></div>
+<div class="res-head"><span class="pill" id="pill-calc">尚未调用</span><span class="note" id="meta-calc"></span></div>
+<pre class="result empty" id="res-calc">点击「发送请求」查看响应。</pre>
+</div>
+
+<details>
+<summary>支持的语法、函数与错误码</summary>
+<ul>
+<li>运算符：<code>+ - * / ^</code>，括号 <code>()</code>，一元正负号；<code>^</code> 右结合，故 <code>2^3^2 = 512</code>。</li>
+<li>常量：<code>pi</code>（或 π）、<code>e</code>、<code>tau</code>（或 τ）；数字支持 <code>1.5e2</code> 这类科学计数法。</li>
+<li>单参函数：<code>sqrt abs sin cos tan asin acos atan ln log log10 exp floor ceil round sign deg rad</code>。</li>
+<li>双参函数：<code>pow min max hypot</code>；三角函数按弧度输入，角度用 <code>rad(30)</code> 转换。</li>
+<li>错误码：<code>EMPTY_EXPRESSION</code>、<code>INVALID_TOKEN</code>、<code>UNMATCHED_PARENTHESIS</code>、<code>DIVIDE_BY_ZERO</code>、<code>MATH_DOMAIN_ERROR</code>、<code>UNKNOWN_FUNCTION</code>、<code>BAD_ARGUMENT_COUNT</code> 等。</li>
+</ul>
+</details>
+
+<div class="sec" id="sec4"><span class="num">04</span><h2>时间与时区</h2><span class="tag">IANA 时区</span></div>
+
+<div class="item">
+<h3><span class="idx">05</span>指定时区的当前时间 <span class="note">GET</span></h3>
+<span class="path">GET /api/time/now?tz=Asia/Shanghai</span>
+<div class="why">返回 UTC 与本地时间、UTC 偏移、夏令时标记、Unix 毫秒、星期与年内第几天。留空默认 Asia/Shanghai。</div>
+<div class="form-grid">
+<div class="field"><label for="t-now-zone">时区</label><select id="t-now-zone"></select></div>
+</div>
+<div class="cmdrow"><span class="note">使用 IANA 时区标识</span><button type="button" onclick="copyCurl('tnow', this)">复制 cURL</button><button type="button" class="primary" onclick="run('tnow')">发送请求</button></div>
+<div class="res-head"><span class="pill" id="pill-tnow">尚未调用</span><span class="note" id="meta-tnow"></span></div>
+<pre class="result empty" id="res-tnow">点击「发送请求」查看响应。</pre>
+</div>
+
+<div class="item">
+<h3><span class="idx">06</span>跨时区时间换算 <span class="note">GET</span></h3>
+<span class="path">GET /api/time/convert?datetime=2026-11-12 13:30&amp;from=Asia/Shanghai&amp;to=America/New_York</span>
+<div class="why">不带偏移的时间按 from 时区解释，带 <code>Z</code> 或 <code>+08:00</code> 的 ISO 8601 按绝对值解析；返回目标时区时间与两地时差小时数。</div>
+<div class="form-grid">
+<div class="field full"><label for="t-dt">时间</label><input id="t-dt" value="2026-11-12 13:30" spellcheck="false"></div>
+<div class="field"><label for="t-from">源时区</label><select id="t-from"></select></div>
+<div class="field"><label for="t-to">目标时区</label><select id="t-to"></select></div>
+</div>
+<div class="cmdrow"><span class="note">时间格式：2026-11-12 13:30 / ISO 8601</span><button type="button" onclick="copyCurl('tconv', this)">复制 cURL</button><button type="button" class="primary" onclick="run('tconv')">发送请求</button></div>
+<div class="res-head"><span class="pill" id="pill-tconv">尚未调用</span><span class="note" id="meta-tconv"></span></div>
+<pre class="result empty" id="res-tconv">点击「发送请求」查看响应。</pre>
+</div>
+
+<div class="item">
+<h3><span class="idx">07</span>两个时间之间的差值 <span class="note">GET</span></h3>
+<span class="path">GET /api/time/diff?start=2026-01-01&amp;end=2026-11-12 13:30</span>
+<div class="why">返回带符号的总秒数、各粒度总量与「天 / 时 / 分 / 秒」分解，适用于工期、账期等计算。</div>
+<div class="form-grid">
+<div class="field"><label for="t-start">开始时间</label><input id="t-start" value="2026-01-01" spellcheck="false"></div>
+<div class="field"><label for="t-end">结束时间</label><input id="t-end" value="2026-11-12 13:30" spellcheck="false"></div>
+</div>
+<div class="cmdrow"><span class="note">默认按 Asia/Shanghai 解释</span><button type="button" onclick="copyCurl('tdiff', this)">复制 cURL</button><button type="button" class="primary" onclick="run('tdiff')">发送请求</button></div>
+<div class="res-head"><span class="pill" id="pill-tdiff">尚未调用</span><span class="note" id="meta-tdiff"></span></div>
+<pre class="result empty" id="res-tdiff">点击「发送请求」查看响应。</pre>
+</div>
+
+<details>
+<summary>可用时区表</summary>
+<ul><li>14 个常用时区，含中国标准时间、中国香港 / 中国澳门 / 中国台湾（台北）、东京、伦敦、纽约、悉尼与 UTC；Windows 环境下若 IANA 标识不可用会自动回退到对应的 Windows 时区 ID。</li></ul>
+<button type="button" onclick="run('tzones')">查看 /api/time/zones 原始响应</button>
+<div class="res-head"><span class="pill" id="pill-tzones">尚未调用</span><span class="note" id="meta-tzones"></span></div>
+<pre class="result empty" id="res-tzones">点击上方按钮查看响应。</pre>
+</details>
+
+<div class="sec" id="sec5"><span class="num">05</span><h2>单位换算与汇率</h2><span class="tag">9 类 / 77 单位</span></div>
+
+<div class="item">
+<h3><span class="idx">08</span>按类别换算 <span class="note">GET</span></h3>
+<span class="path">GET /api/units/convert?category=length&amp;from=m&amp;to=ft&amp;value=1.8</span>
+<div class="why">覆盖长度、重量、温度、数据存储、速度、面积、体积、时间与<b>汇率</b>。线性单位经基准单位中转，温度以开尔文为中转；汇率取自公开接口每日更新的参考值，经 USD 基准做交叉换算，断网时自动改用内置快照，响应同时给出基准汇率、反向汇率与汇率时点。</div>
+<div class="form-grid">
+<div class="field"><label for="u-cat">类别</label><select id="u-cat" onchange="onCatChange()"></select></div>
+<div class="field"><label for="u-val">数值</label><input id="u-val" value="1.8" spellcheck="false"></div>
+<div class="field"><label for="u-from">源单位</label><select id="u-from"></select></div>
+<div class="field"><label for="u-to">目标单位</label><select id="u-to"></select></div>
+</div>
+<div class="cmdrow"><span class="note">切换类别会自动刷新单位下拉</span><button type="button" onclick="copyCurl('uconv', this)">复制 cURL</button><button type="button" class="primary" onclick="run('uconv')">发送请求</button></div>
+<div class="res-head"><span class="pill" id="pill-uconv">尚未调用</span><span class="note" id="meta-uconv"></span></div>
+<pre class="result empty" id="res-uconv">点击「发送请求」查看响应。</pre>
+</div>
+
+<details>
+<summary>支持的类别与单位表</summary>
+<ul>
+<li><b>长度 / 重量</b>：米、千米、英里、英尺、英寸、海里，以及里、丈、尺；千克、磅、盎司、英石，以及斤、两、担。</li>
+<li><b>温度</b>：摄氏 / 华氏 / 开尔文，非线性换算。</li>
+<li><b>数据存储 / 速度</b>：B~TB 十进制与 KiB~TiB 二进制两套；m/s、km/h、mph、节、马赫。</li>
+<li><b>面积 / 体积 / 时间</b>：平方米、公顷、亩、英亩；升、美制加仑 / 夸脱 / 品脱 / 杯；秒到周。</li>
+<li><b>汇率换算</b>：人民币、美元、欧元、日元、英镑、港元、新台币、澳门元、韩元、新加坡元、澳元、加元、瑞士法郎、泰铢共 14 种。数据源为 open.er-api.com 每日更新的公开参考汇率，成功结果缓存 30 分钟；上游不可用或超时时降级为内置快照，<code>source</code> 标明 <code>live</code> / <code>fallback</code>。</li>
+</ul>
+<span class="path">GET /api/units/convert?category=currency&amp;from=cny&amp;to=usd&amp;value=100</span>
+<button type="button" onclick="run('ucats')">查看 /api/units/categories 原始响应</button>
+<div class="res-head"><span class="pill" id="pill-ucats">尚未调用</span><span class="note" id="meta-ucats"></span></div>
+<pre class="result empty" id="res-ucats">点击上方按钮查看响应。</pre>
+</details>
+
+<div class="sec" id="sec6"><span class="num">06</span><h2>响应契约与调用方式</h2><span class="tag">统一包装</span></div>
+
+<pre>{
+  "success": true,
+  "data": { "...": "业务数据" },
+  "error": null,
+  "elapsedMs": 1.24,
+  "timestamp": "2026-11-12T13:36:18.1234567+08:00"
+}
+
+// 参数错误示例（HTTP 仍为 200）
+{
+  "success": false,
+  "data": null,
+  "error": { "code": "DIVIDE_BY_ZERO", "message": "除数不能为零" },
+  "elapsedMs": 0.31,
+  "timestamp": "2026-11-12T13:36:20.1234567+08:00"
+}</pre>
+
+<pre># 天气
+curl 'http://127.0.0.1:5188/api/weather?city=%E5%AE%81%E6%B3%A2'
+
+# 计算器（POST，表达式含 + 号时务必走请求体或 URL 编码）
+curl -X POST 'http://127.0.0.1:5188/api/calculator' \
+  -H 'Content-Type: application/json' \
+  -d '{"expression":"1+2*(3-4)/5"}'
+
+# 时间换算
+curl 'http://127.0.0.1:5188/api/time/convert?datetime=2026-11-12%2013:30&amp;from=Asia/Shanghai&amp;to=UTC'
+
+# 单位换算
+curl 'http://127.0.0.1:5188/api/units/convert?category=temperature&amp;from=c&amp;to=f&amp;value=100'
+
+# 汇率换算（100 人民币 → 美元）
+curl 'http://127.0.0.1:5188/api/units/convert?category=currency&amp;from=cny&amp;to=usd&amp;value=100'</pre>
+
+<details>
+<summary>错误码一览（均以 success=false 返回）</summary>
+<ul>
+<li><code>INVALID_VALUE</code> / <code>INVALID_CATEGORY</code> / <code>INVALID_UNIT</code> / <code>MISSING_UNIT</code>：单位换算入参问题；<code>RATE_UNAVAILABLE</code>：汇率数据不可用。</li>
+<li><code>MISSING_CITY</code> / <code>INVALID_CITY</code>：天气城市名缺失或过长。</li>
+<li><code>EMPTY_EXPRESSION</code> / <code>INVALID_TOKEN</code> / <code>UNMATCHED_PARENTHESIS</code> / <code>DIVIDE_BY_ZERO</code> / <code>MATH_DOMAIN_ERROR</code>：表达式解析与数学定义域问题。</li>
+<li><code>INVALID_TIMEZONE</code> / <code>INVALID_DATETIME</code> / <code>MISSING_DATETIME</code>：时区与时间格式问题。</li>
+<li><code>INVALID_JSON</code>：POST 请求体不是合法 JSON；<code>INTERNAL_ERROR</code>：未预期的服务端异常。</li>
+</ul>
+</details>
+
+<div class="callout"><b>注意</b>：本服务面向本地演示，开放访问、未做鉴权与限流。天气上游为公开免 Key 服务，断网时返回的是模拟数据，不可用于生产决策。若需部署到公网，请补充鉴权、超时与限流策略。</div>
+
+<div class="foot">.NET 10 Minimal API · 仅 Microsoft.AspNetCore.App 框架引用，零 NuGet 包 · 页面为单文件 HTML / CSS / JS，无外部资源。<br>启动：<code>dotnet run --project ApiPlayground</code> 或双击 <code>start.cmd</code>；监听地址可用环境变量 <code>API_URL</code> 或 <code>--urls</code> 覆盖。</div>
+
+</main>
+</div>
+
+<button class="to-top" id="toTop" type="button" aria-label="回到顶部" title="回到顶部" onclick="goTop()">
+<svg viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 10V2M6 2L2.5 5.5M6 2L9.5 5.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<span>回到顶部</span>
+</button>
+
+<script>
+/* ---------- 模板原有：章节导航与回到顶部 ---------- */
+function goTop(){
+  window.scrollTo({top:0,behavior:'smooth'});
+  var links=document.querySelectorAll('.nav a');
+  links.forEach(function(a){a.classList.remove('on');});
+  if(links.length){links[0].classList.add('on');}
+}
+function initTop(){
+  var btn=document.getElementById('toTop');
+  function sync(){ if(window.scrollY>380){btn.classList.add('show');}else{btn.classList.remove('show');} }
+  window.addEventListener('scroll',sync,{passive:true});
+  sync();
+}
+function initNav(){
+  var links=[].slice.call(document.querySelectorAll('.nav a'));
+  var secs=[].slice.call(document.querySelectorAll('.sec[id]'));
+  if(!links.length || !secs.length)return;
+  function sync(){
+    // 以视口 18% 处为基准取「已经滚过」的最后一章；滚到底部时强制高亮最后一章，
+    // 避免末章内容太短、永远进不了观察带的情况（新增的第 07 章即属此例）。
+    var atBottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 4;
+    var id = atBottom ? secs[secs.length-1].id : secs[0].id;
+    if(!atBottom){
+      var probe = window.scrollY + Math.max(120, window.innerHeight * 0.18);
+      secs.forEach(function(s){
+        if(s.getBoundingClientRect().top + window.scrollY <= probe) id = s.id;
+      });
+      // 末章标题进入视口上半部分即优先高亮：末章内容短，锚点跳转后未必能滚到页面底部
+      var lastTop = secs[secs.length-1].getBoundingClientRect().top;
+      if (lastTop >= 0 && lastTop <= window.innerHeight * 0.5) id = secs[secs.length-1].id;
+    }
+    links.forEach(function(a){ a.classList.toggle('on', a.getAttribute('href')==='#'+id); });
+  }
+  window.addEventListener('scroll', sync, {passive:true});
+  window.addEventListener('resize', sync);
+  sync();
+}
+
+/* ---------- 调试台：接口定义与请求逻辑 ---------- */
+var $ = function(id){ return document.getElementById(id); };
+var val = function(id){ var e=$(id); return e ? String(e.value).trim() : ''; };
+var q = function(k,v){ return encodeURIComponent(k)+'='+encodeURIComponent(v); };
+
+var SPECS = {
+  health: { method:'GET', path:function(){ return '/api/health'; } },
+  index:  { method:'GET', path:function(){ return '/api'; } },
+  cities: { method:'GET', path:function(){ return '/api/weather/cities'; } },
+  weather:{ method:'GET', path:function(){ return '/api/weather?'+q('city', val('w-custom') || val('w-city') || '宁波'); } },
+  calc:   { method:'POST', path:function(){ return '/api/calculator'; }, body:function(){ return { expression: val('c-expr') }; } },
+  tnow:   { method:'GET', path:function(){ return '/api/time/now?'+q('tz', val('t-now-zone')); } },
+  tzones: { method:'GET', path:function(){ return '/api/time/zones'; } },
+  tconv:  { method:'GET', path:function(){ return '/api/time/convert?'+[q('datetime',val('t-dt')),q('from',val('t-from')),q('to',val('t-to'))].join('&'); } },
+  tdiff:  { method:'GET', path:function(){ return '/api/time/diff?'+[q('start',val('t-start')),q('end',val('t-end'))].join('&'); } },
+  ucats:  { method:'GET', path:function(){ return '/api/units/categories'; } },
+  uconv:  { method:'GET', path:function(){ return '/api/units/convert?'+[q('category',val('u-cat')),q('from',val('u-from')),q('to',val('u-to')),q('value',val('u-val'))].join('&'); } }
+};
+
+var calls = 0;
+
+/* ---------- 每个请求各自的「最终结果」区 ---------- */
+function fmt(n){ return (n === null || n === undefined) ? '—' : String(n); }
+
+/* 在每个原始 JSON 结果区上方插入结论块，避免 11 个卡片重复写 HTML */
+function initFinalBoxes(){
+  document.querySelectorAll('pre.result[id^="res-"]').forEach(function(pre){
+    var name = pre.id.slice(4);
+    if ($('final-' + name)) return;
+    var box = document.createElement('div');
+    box.className = 'final-box empty';
+    box.id = 'final-' + name;
+    box.textContent = '尚未调用，发送请求后这里显示该请求的最终结果。';
+    pre.parentNode.insertBefore(box, pre);
+  });
+}
+
+function renderFinal(name, json, failure){
+  var box = $('final-' + name);
+  if (!box) return;
+  var ok = !!(json && json.success === true);
+  var text = ok ? summarize(name, json.data)
+    : (json && json.error) ? (json.error.message || '接口返回失败')
+    : (failure || '请求失败');
+  box.textContent = (ok ? '' : '× ') + text;
+  box.className = 'final-box' + (ok ? '' : ' fail');
+}
+
+function summarize(name, d){
+  if (!d) return '· 接口未返回数据';
+  try {
+    switch (name) {
+      case 'health':  return '服务正常 · ' + fmt(d.framework) + ' / CLR ' + fmt(d.runtime) + ' · ' + fmt(d.endpointCount) + ' 个端点 · ' + fmt(d.listenUrl);
+      case 'index':   return '共 ' + d.length + ' 组接口 · ' + Array.from(new Set(d.map(function(x){ return x.section; }))).join(' / ');
+      case 'cities':  return '内置 ' + d.length + ' 个城市 · ' + d.slice(0, 3).map(function(c){ return c.name; }).join(' / ') + ' …';
+      case 'weather': return fmt(d.city) + (d.region ? '（' + d.region + '）' : '') + ' ' + fmt(d.temperatureC) + '℃ · '
+        + fmt(d.weatherText) + ' · 体感 ' + fmt(d.feelsLikeC) + '℃ · 湿度 ' + fmt(d.humidityPercent) + '% · 风速 '
+        + fmt(d.windSpeedKmh) + ' km/h · ' + (d.source === 'live' ? '实时数据' : '离线模拟数据');
+      case 'calc':    return fmt(d.expression) + ' = ' + fmt(d.display);
+      case 'tnow':    return fmt(d.timeZoneLabel) + ' 当前 ' + fmt(d.display) + ' ' + fmt(d.weekday) + ' · UTC' + fmt(d.utcOffset);
+      case 'tzones':  return '可用时区 ' + d.length + ' 个 · ' + d.slice(0, 3).map(function(z){ return z.label; }).join(' / ') + ' …';
+      case 'tconv':   return fmt(d.input) + '（' + fmt(d.fromLabel) + '）→ ' + fmt(d.display) + '（' + fmt(d.toLabel) + '）· 时差 ' + fmt(d.shiftHours) + ' 小时';
+      case 'tdiff':   return fmt(d.start).slice(0, 16).replace('T', ' ') + ' → ' + fmt(d.end).slice(0, 16).replace('T', ' ') + ' 相差 ' + fmt(d.display);
+      case 'ucats':   return d.length + ' 类单位 · 共 ' + d.reduce(function(s, c){ return s + c.unitCount; }, 0) + ' 个单位 · ' + d.map(function(c){ return c.label; }).join(' / ');
+      case 'uconv':   return d.category === 'currency'
+        ? fmt(d.input) + ' ' + fmt(d.from).toUpperCase() + ' = ' + fmt(d.display) + ' ' + fmt(d.to).toUpperCase()
+          + ' · ' + fmt(d.rateExpression) + ' · ' + fmt(d.rateUpdatedAt)
+          + '（' + (d.source === 'live' ? '公开接口' : '内置快照') + '）'
+        : fmt(d.input) + ' ' + fmt(d.from) + ' = ' + fmt(d.display) + ' ' + fmt(d.to) + '（' + fmt(d.categoryLabel) + '）';
+      default:        return '已返回结果数据';
+    }
+  } catch (e) { return '已返回结果数据'; }
+}
+
+function esc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+/* 中性配色 JSON 高亮：仅用主色与灰度，不引入彩色分级 */
+function highlight(obj){
+  var raw = JSON.stringify(obj, null, 2);
+  var out = '', i = 0;
+  while (i < raw.length) {
+    var c = raw[i];
+    if (c === '"') {
+      var j = i + 1, s = '';
+      while (j < raw.length) {
+        if (raw[j] === '\\') { s += raw[j] + (raw[j+1] || ''); j += 2; continue; }
+        if (raw[j] === '"') break;
+        s += raw[j]; j++;
+      }
+      var isKey = /^\s*:/.test(raw.slice(j+1));
+      out += isKey ? '<span class="j-key">' + esc('"' + s + '"') + '</span>' : esc('"' + s + '"');
+      i = j + 1; continue;
+    }
+    if (c === '-' || (c >= '0' && c <= '9')) {
+      var m = raw.slice(i).match(/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/);
+      if (m) { out += '<span class="j-num">' + m[0] + '</span>'; i += m[0].length; continue; }
+    }
+    var w = raw.slice(i).match(/^(true|false|null)/);
+    if (w) { out += '<span class="j-lit">' + w[0] + '</span>'; i += w[0].length; continue; }
+    out += esc(c); i++;
+  }
+  return out;
+}
+
+async function run(name, silent){
+  var spec = SPECS[name];
+  if (!spec) return null;
+  var pill = $('pill-'+name), meta = $('meta-'+name), res = $('res-'+name);
+  if (!silent && pill) { pill.textContent = '请求中…'; pill.className = 'pill'; }
+  var t0 = performance.now();
+  try {
+    var init = { method: spec.method };
+    if (spec.body) {
+      init.headers = { 'Content-Type':'application/json' };
+      init.body = JSON.stringify(spec.body());
+    }
+    var resp = await fetch(spec.path(), init);
+    var json = await resp.json();
+    var clientMs = Math.round(performance.now() - t0);
+    if (!silent) {
+      calls++;
+      $('stat-calls').textContent = calls;
+      $('stat-last').textContent = clientMs + ' ms';
+      var ok = json.success === true;
+      pill.textContent = (ok ? '✓ success' : '× error') + ' · HTTP ' + resp.status;
+      pill.className = 'pill' + (ok ? ' ok' : '');
+      meta.textContent = '服务端 ' + json.elapsedMs + ' ms · 客户端 ' + clientMs + ' ms · ' + json.timestamp;
+      res.classList.remove('empty');
+      res.innerHTML = highlight(json);
+      if (name === 'weather' && ok && json.data) {
+        $('stat-weather').textContent = json.data.source === 'live' ? '实时' : '兜底';
+      }
+      renderFinal(name, json);
+    }
+    return json;
+  } catch (e) {
+    if (!silent) {
+      pill.textContent = '× 请求失败'; pill.className = 'pill';
+      meta.textContent = '';
+      res.classList.remove('empty');
+      res.textContent = '无法连接服务：' + (e && e.message ? e.message : e)
+        + '\n请确认服务正在运行，且监听端口为 5188。';
+      renderFinal(name, null, (e && e.message) ? e.message : String(e));
+    }
+    return null;
+  }
+}
+
+function curlText(name){
+  var s = SPECS[name], url = location.origin + s.path();
+  if (s.method === 'POST') {
+    return "curl -X POST '" + url + "' \\\n  -H 'Content-Type: application/json' \\\n  -d '"
+      + JSON.stringify(s.body()) + "'";
+  }
+  return "curl '" + url + "'";
+}
+
+/* 剪贴板权限受限时自动降级为 textarea + execCommand */
+async function writeClipboard(text){
+  if (navigator.clipboard && window.isSecureContext) {
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) { /* 继续降级 */ }
+  }
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    var ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return !!ok;
+  } catch (e) { return false; }
+}
+
+async function copyCurl(name, btn){
+  var text = curlText(name), old = btn ? btn.textContent : '';
+  if (await writeClipboard(text)) {
+    if (btn) { btn.textContent = '已复制'; setTimeout(function(){ btn.textContent = old; }, 1400); }
+  } else {
+    window.prompt('复制失败，请手动复制：', text);
+  }
+}
+
+function fillSelect(id, items, valueKey, labelKey, selected){
+  var el = $(id); if (!el) return;
+  el.innerHTML = '';
+  if (!items || !items.length) {
+    var empty = document.createElement('option');
+    empty.textContent = '（服务未就绪）';
+    el.appendChild(empty);
+    return;
+  }
+  items.forEach(function(it){
+    var o = document.createElement('option');
+    o.value = it[valueKey];
+    o.textContent = it[labelKey];
+    if (selected !== undefined && String(it[valueKey]) === String(selected)) o.selected = true;
+    el.appendChild(o);
+  });
+}
+
+var PREFERRED_TO = { length:'ft', weight:'lb', temperature:'f', data:'mib', speed:'kmh', area:'mu', volume:'gal', time:'h', currency:'usd' };
+function onCatChange(){
+  var cat = (window.__cats || []).find(function(c){ return c.id === val('u-cat'); });
+  if (!cat || !cat.units || !cat.units.length) return;
+  fillSelect('u-from', cat.units, 'id', 'label', cat.units[0].id);
+  fillSelect('u-to', cat.units, 'id', 'label',
+    PREFERRED_TO[cat.id] || (cat.units[1] ? cat.units[1].id : cat.units[0].id));
+}
+
+function setExpr(s){
+  $('c-expr').value = s;
+  run('calc');
+}
+
+async function initData(){
+  var results = await Promise.all([
+    run('cities', true), run('tzones', true), run('ucats', true),
+    run('index', true), run('health', true)
+  ]);
+  var pick = function(r){ return r && r.success && r.data ? r.data : []; };
+  window.__cities = pick(results[0]);
+  window.__zones  = pick(results[1]);
+  window.__cats   = pick(results[2]);
+  window.__index  = pick(results[3]);
+  var health = results[4] && results[4].success ? results[4].data : null;
+
+  fillSelect('w-city',
+    window.__cities.map(function(c){ return { value:c.name, label:c.name + ' · ' + c.region }; }),
+    'value', 'label', '宁波');
+
+  var zoneOpts = window.__zones.map(function(z){ return { value:z.id, label:z.label + ' (' + z.id + ')' }; });
+  fillSelect('t-now-zone', zoneOpts, 'value', 'label', 'Asia/Shanghai');
+  fillSelect('t-from', zoneOpts, 'value', 'label', 'Asia/Shanghai');
+  fillSelect('t-to', zoneOpts, 'value', 'label', 'America/New_York');
+
+  fillSelect('u-cat',
+    window.__cats.map(function(c){ return { value:c.id, label:c.label + ' · ' + c.baseUnit + ' · ' + c.unitCount + ' 单位' }; }),
+    'value', 'label', 'length');
+  onCatChange();
+
+  var tb = $('ep-table');
+  tb.innerHTML = '';
+  window.__index.forEach(function(e){
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><b>' + esc(e.method) + '</b></td>'
+      + '<td><span class="path">' + esc(e.path) + '</span></td>'
+      + '<td>' + esc(e.section) + '</td>'
+      + '<td>' + esc(e.description) + '</td>';
+    tb.appendChild(tr);
+  });
+  $('tb-count').textContent = window.__index.length;
+
+  if (health) {
+    $('stat-endpoints').textContent = health.endpointCount;
+    $('side-endpoints').textContent = health.endpointCount;
+    $('stat-runtime').textContent = String(health.runtime || '10.0').split('.').slice(0,2).join('.');
+  }
+  var st = $('tb-status');
+  var online = !!health;
+  st.textContent = online ? '服务在线' : '服务未连接';
+  st.className = 'pill' + (online ? ' ok' : '');
+}
+
+initFinalBoxes();
+initNav();
+initTop();
+initData();
+</script>
+</body>
+</html>
