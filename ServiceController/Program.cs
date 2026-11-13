@@ -112,6 +112,7 @@ if (await LooksLikeOursAsync(5188))
         ? "  本次不再重复启动，已为你打开页面；本窗口可以关闭。"
         : "  本次不再重复启动；本窗口可以关闭。");
     Console.WriteLine($"  页面地址：{ControllerUrl}/");
+    Console.WriteLine("  提示：启动/停止与请求日志都打在**那个**已在运行的窗口里，本窗口只负责把页面打开。");
     if (autoOpenBrowser) OpenBrowser(ControllerUrl + "/");
     PauseIfInteractive();
     return 0;
@@ -140,6 +141,7 @@ if (!File.Exists(dll))
 
 var bootClock = Stopwatch.StartNew();
 var backend = new BackendProcess(dll, projectDir, BackendUrl, ControllerUrl);
+ConsoleShell? shell = null;      // 页面触发的启停也要写进窗口日志，端点里用这个引用
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls(ControllerUrl);
@@ -157,8 +159,22 @@ app.UseStaticFiles(new StaticFileOptions { FileProvider = files });
 
 // ---------- 控制接口（控制器自身提供，不转发给主服务） ----------
 app.MapGet("/control/status", () => Results.Json(backend.Status()));
-app.MapPost("/control/start", async () => Results.Json(await backend.StartAsync()));
-app.MapPost("/control/stop", async () => Results.Json(await backend.StopAsync()));
+app.MapPost("/control/start", async () =>
+{
+    shell?.LogExternal("页面点了「启动服务」，正在拉起主服务…");
+    var st = await backend.StartAsync();
+    shell?.LogExternal(backend.Running
+        ? $"页面启动完成：主服务运行中（pid {backend.Pid}）"
+        : "页面启动未成功：" + backend.Message);
+    return Results.Json(st);
+});
+app.MapPost("/control/stop", async () =>
+{
+    shell?.LogExternal("页面点了「停止服务」，正在优雅停止…");
+    var st = await backend.StopAsync();
+    shell?.LogExternal("页面停止完成：" + backend.Message);
+    return Results.Json(st);
+});
 
 // ---------- 把 /api/* 反向代理到主服务 ----------
 // 必须绕过系统代理：本机设置了 HTTP_PROXY 且无 NO_PROXY，否则 127.0.0.1 请求会被代理拦成 502
@@ -263,7 +279,7 @@ _ = Task.Run(async () =>
 });
 
 // 交互式控制台：窗口里直接用命令启停；exit / Ctrl+C / 关窗口都会一并停掉主服务
-var shell = new ConsoleShell(backend, ControllerUrl, () => app.Lifetime.StopApplication(), projectDir, dll);
+shell = new ConsoleShell(backend, ControllerUrl, () => app.Lifetime.StopApplication(), projectDir, dll);
 _ = Task.Run(shell.RunAsync);
 
 // Ctrl+C 先优雅停主服务再退出控制器，避免直接强杀子进程

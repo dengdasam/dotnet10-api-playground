@@ -15,6 +15,7 @@ public sealed class ConsoleShell(
     private long _logCursor;
     private volatile bool _streamOn = true;
     private volatile bool _promptShown;
+    private readonly object _liveGate = new();
 
     public async Task RunAsync()
     {
@@ -458,13 +459,19 @@ public sealed class ConsoleShell(
     private void Live(string line)
     {
         var text = line.Length > 200 ? line[..200] + " …" : line;
-        var old = Console.ForegroundColor;
-        if (_promptShown) Console.WriteLine();     // 另起一行，别让日志接在 "  > " 后面
-        try { Console.ForegroundColor = ConsoleColor.DarkGray; } catch { }
-        Console.WriteLine("  │ " + text);
-        try { Console.ForegroundColor = old; } catch { }
-        if (_promptShown) Console.Write("  > ");
+        lock (_liveGate)   // Kestrel 线程（页面触发的启停）也可能进来，避免与流水输出交错
+        {
+            var old = Console.ForegroundColor;
+            if (_promptShown) Console.WriteLine();     // 另起一行，别让日志接在 "  > " 后面
+            try { Console.ForegroundColor = ConsoleColor.DarkGray; } catch { }
+            Console.WriteLine("  │ " + text);
+            try { Console.ForegroundColor = old; } catch { }
+            if (_promptShown) Console.Write("  > ");
+        }
     }
+
+    /// <summary>给页面（/control/start|stop）用：把页面上的操作也写进窗口，日志只有一个出口。</summary>
+    internal void LogExternal(string text) => Live(text);
 
     private void Write(string label, string value, bool ok = false)
     {
