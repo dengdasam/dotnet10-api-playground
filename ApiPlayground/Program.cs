@@ -71,7 +71,8 @@ var endpoints = new[]
     new { method = "GET",      path = "/api/health",           section = "概览",   description = "服务健康与运行时信息" },
     new { method = "GET",      path = "/api/weather",          section = "天气",   description = "按中文城市名查实时天气（离线自动兜底）" },
     new { method = "GET",      path = "/api/weather/cities",   section = "天气",   description = "内置中文城市表（经纬度）" },
-    new { method = "GET·POST", path = "/api/calculator",       section = "计算",   description = "数学表达式求值" },
+    new { method = "GET·POST", path = "/api/calculator",       section = "计算",   description = "数学表达式求值（GET 查询串或 POST JSON 请求体）" },
+    new { method = "POST",     path = "/api/calculator",       section = "计算",   description = "同上，按 POST JSON 计一条，目录与实际路由数一致" },
     new { method = "GET",      path = "/api/time/now",         section = "时间",   description = "指定时区的当前时间" },
     new { method = "GET",      path = "/api/time/zones",       section = "时间",   description = "常用时区表" },
     new { method = "GET",      path = "/api/time/convert",     section = "时间",   description = "跨时区时间换算" },
@@ -101,7 +102,7 @@ app.MapGet("/api/health", () => ApiWrap.Run(() => new
     listenUrl,
     publicUrl = "http://127.0.0.1:5188",
     serverTime = DateTimeOffset.Now.ToString("O"),
-    endpointCount = 22,
+    endpointCount = endpoints.Length,   // 直接跟目录长度走，避免手写数字和实际注册数悄悄对不上
     weatherProvider = "Open-Meteo（不可用时自动降级为本地模拟）",
     catApi = CatService.ConfigStatus(),
     dogApi = DogService.ConfigStatus(),
@@ -228,12 +229,20 @@ if (int.TryParse(Environment.GetEnvironmentVariable("API_PARENT_PID"), out var p
 
 // 预热：服务一就绪就先把汇率和默认城市（宁波，页面默认值）的天气拉一遍。
 // 上游往返约 0.2~1.3 秒，挪到启动后后台做，用户第一次点接口不必等。
+// 四个上游互不依赖，并行预热：总耗时取最慢的那个（汇率约 0.2~1.3 秒），而不是四者相加。
 app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
 {
-    await ExchangeRateService.WarmupAsync();
-    await CatService.WarmupAsync();   // 品种列表约 60+ 条，提前拉一次，页面下拉不必等
-    await DogService.WarmupAsync();   // 先读内置种子（毫秒级），1.8MB 索引在后台自行刷新
-    try { await app.Services.GetRequiredService<WeatherService>().GetAsync("宁波"); } catch { /* 预热失败不影响服务 */ }
+    static async Task Quiet(Func<Task> job)
+    {
+        try { await job(); } catch { /* 预热失败不影响服务，请求时会自行重试 */ }
+    }
+
+    var weather = app.Services.GetRequiredService<WeatherService>();
+    await Task.WhenAll(
+        Quiet(ExchangeRateService.WarmupAsync),
+        Quiet(CatService.WarmupAsync),      // 品种列表约 60+ 条，提前拉一次，页面下拉不必等
+        Quiet(DogService.WarmupAsync),      // 先读内置种子（毫秒级），1.8MB 索引在后台自行刷新
+        Quiet(() => weather.GetAsync("宁波")));
 }));
 
 try

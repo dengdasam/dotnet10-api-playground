@@ -28,29 +28,30 @@ public static class ApiWrap
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
-    private static IResult Make(bool ok, object? data, ApiError? error, Stopwatch sw)
+    // Stopwatch.GetTimestamp 是纯 struct，无分配；StartNew 每个请求都会 new 一个对象
+    private static IResult Make(bool ok, object? data, ApiError? error, long startedAt)
         => Results.Json(
             new ApiEnvelope(
                 ok,
                 data,
                 error,
-                Math.Round(sw.Elapsed.TotalMilliseconds, 2),
+                Math.Round(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, 2),
                 DateTimeOffset.Now.ToString("O")),
             JsonOptions);
 
     public static IResult Run(Func<object?> body)
     {
-        var sw = Stopwatch.StartNew();
-        try { return Make(true, body(), null, sw); }
-        catch (ApiException ex) { return Make(false, null, new ApiError(ex.Code, ex.Message), sw); }
-        catch (Exception ex) { return Make(false, null, new ApiError("INTERNAL_ERROR", ex.Message), sw); }
+        var startedAt = Stopwatch.GetTimestamp();
+        try { return Make(true, body(), null, startedAt); }
+        catch (ApiException ex) { return Make(false, null, new ApiError(ex.Code, ex.Message), startedAt); }
+        catch (Exception ex) { return Make(false, null, new ApiError("INTERNAL_ERROR", ex.Message), startedAt); }
     }
 
     public static async Task<IResult> RunAsync(Func<Task<object?>> body)
     {
-        var sw = Stopwatch.StartNew();
-        try { return Make(true, await body(), null, sw); }
-        catch (ApiException ex) { return Make(false, null, new ApiError(ex.Code, ex.Message), sw); }
-        catch (Exception ex) { return Make(false, null, new ApiError("INTERNAL_ERROR", ex.Message), sw); }
+        var startedAt = Stopwatch.GetTimestamp();
+        try { return Make(true, await body(), null, startedAt); }
+        catch (ApiException ex) { return Make(false, null, new ApiError(ex.Code, ex.Message), startedAt); }
+        catch (Exception ex) { return Make(false, null, new ApiError("INTERNAL_ERROR", ex.Message), startedAt); }
     }
 }

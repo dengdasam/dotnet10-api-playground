@@ -41,6 +41,8 @@ public sealed class DogService
     private static volatile DogBreed[]? _breeds;
     private static DateTimeOffset _breedsAt = DateTimeOffset.MinValue;
     private static string _source = "未加载";
+    private static int _groupCount;      // 分组数与低敏数在索引装载时算一次，列表接口不再遍历
+    private static int _hypoCount;
     private static int _refreshing;
 
     private static string SeedFile => Path.Combine(AppContext.BaseDirectory, "Data", "dog-breeds.json");
@@ -90,9 +92,8 @@ public sealed class DogService
         public string[] RecognizedBy { get; init; } = [];
         public DogImage[] Images { get; init; } = [];
 
-        public string Label => NameZh.Length > 0 && !NameZh.Equals(Name, StringComparison.OrdinalIgnoreCase)
-            ? NameZh + " · " + Name
-            : Name;
+        /// <summary>展示名（「中文 · 英文」），构建索引时算好，避免列表每次访问都拼字符串。</summary>
+        public string Label { get; init; } = "";
 
         public int? Trait(string key) => Traits.TryGetValue(key, out var v) ? v : null;
     }
@@ -341,8 +342,8 @@ public sealed class DogService
                 thumb = b.Images.Length > 0 ? b.Images[0].Thumb : "",
                 imageCount = b.Images.Length
             }).ToArray(),
-            groupCount = breeds.Select(b => b.GroupId).Distinct().Count(),
-            hypoallergenicCount = breeds.Count(b => b.Hypoallergenic),
+            groupCount = _groupCount,
+            hypoallergenicCount = _hypoCount,
             source = _source,
             cached = _source != "live",
             indexAgeHours = Math.Round(age.TotalHours, 1),
@@ -660,6 +661,24 @@ public sealed class DogService
         finally { Gate.Release(); }
     }
 
+    /// <summary>把索引发布出去：派生统计先算完，再写 _breeds（volatile），保证读侧不会看到计数与数据不一致。</summary>
+    private static void Adopt(DogBreed[] breeds, DateTimeOffset at, string source)
+    {
+        var groups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var hypo = 0;
+        foreach (var b in breeds)
+        {
+            groups.Add(b.GroupId);
+            if (b.Hypoallergenic) hypo++;
+        }
+
+        _groupCount = groups.Count;
+        _hypoCount = hypo;
+        _breedsAt = at;
+        _source = source;
+        _breeds = breeds;
+    }
+
     private static DogBreed[]? TryLoadFile(string path, string source, TimeSpan? maxAge)
     {
         try
@@ -668,13 +687,14 @@ public sealed class DogService
             if (maxAge is { } ttl && DateTimeOffset.UtcNow - new DateTimeOffset(File.GetLastWriteTimeUtc(path), TimeSpan.Zero) > ttl)
                 return null;
 
-            using var doc = JsonDocument.Parse(File.ReadAllBytes(path));
+            // 流式解析：缓存文件 1.84 MB，ReadAllBytes 会先分配一个整块数组再解析，纯属浪费
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+                                              64 * 1024, FileOptions.SequentialScan);
+            using var doc = JsonDocument.Parse(stream);
             var breeds = ParseBreeds(doc.RootElement);
             if (breeds.Length == 0) return null;
 
-            _breeds = breeds;
-            _breedsAt = new DateTimeOffset(File.GetLastWriteTimeUtc(path), TimeSpan.Zero);
-            _source = source;
+            Adopt(breeds, new DateTimeOffset(File.GetLastWriteTimeUtc(path), TimeSpan.Zero), source);
             return breeds;
         }
         catch { return null; }
@@ -702,9 +722,7 @@ public sealed class DogService
             var breeds = ParseBreeds(doc.RootElement);
             if (breeds.Length == 0) return null;
 
-            _breeds = breeds;
-            _breedsAt = DateTimeOffset.UtcNow;
-            _source = "live";
+            Adopt(breeds, DateTimeOffset.UtcNow, "live");
 
             TrySaveCache(doc.RootElement);
             return breeds;
@@ -837,11 +855,16 @@ public sealed class DogService
         if (!GroupNames.ContainsKey(groupId))
             groupId = Text(a, "group_name") is { Length: > 0 } gn ? gn : groupId;
 
+        var nameZh = BreedZh.TryGetValue(name, out var zhValue) ? zhValue : "";
+        var otherNames = Strings(a, "other_names");
+        var temperament = Strings(traits, "temperament");
+
         return new DogBreed
         {
             Id = id,
             Name = name,
-            NameZh = BreedZh.TryGetValue(name, out var zh) ? zh : "",
+            NameZh = nameZh,
+            Label = LabelOf(nameZh, name),
             GroupId = groupId,
             Country = Text(origin, "country") ?? "",
             Region = Text(origin, "region") ?? "",
@@ -856,9 +879,9 @@ public sealed class DogService
             CoatLength = Text(coat, "length") ?? "",
             CoatColors = Strings(coat, "colors"),
             Traits = traitMap,
-            Temperament = Strings(traits, "temperament"),
+            Temperament = temperament,
             Description = Text(a, "description") ?? "",
-            OtherNames = Strings(a, "other_names"),
+            OtherNames = otherNames,
             RecognizedBy = Strings(a, "recognized_by"),
             Images = images.ToArray()
         };
@@ -887,6 +910,12 @@ public sealed class DogService
             || (b.NameZh.Length > 0 && b.NameZh.Contains(needle, StringComparison.Ordinal))).Take(2).ToArray();
         return near.Length == 1 ? near[0] : null;
     }
+
+    /// <summary>展示名：中文名与英文名不同时拼成「柴犬 · Shiba Inu」，否则直接用英文名。</summary>
+    private static string LabelOf(string nameZh, string name) =>
+        nameZh.Length > 0 && !nameZh.Equals(name, StringComparison.OrdinalIgnoreCase)
+            ? nameZh + " · " + name
+            : name;
 
     private static bool Matches(DogBreed b, string needle) =>
         b.Name.Contains(needle, StringComparison.OrdinalIgnoreCase)
