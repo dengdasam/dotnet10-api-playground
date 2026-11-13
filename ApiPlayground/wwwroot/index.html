@@ -150,6 +150,8 @@ input::placeholder{color:var(--ink3)}
 .pill{display:inline-block;padding:1px 8px;border:1px solid var(--line);border-radius:5px;font-size:11px;color:var(--ink2);background:var(--paper);font-variant-numeric:tabular-nums}
 .pill.ok{border-color:var(--accent-line);color:var(--accent);background:var(--accent-soft)}
 .pill.off{color:var(--ink3)}
+/* 结果区右侧的「复制 JSON」：小号按钮，不抢主操作视觉 */
+.res-head .copy-json{margin-left:auto;font-size:11px;padding:3px 9px}
 .result{margin-top:8px;background:var(--code);border:1px solid var(--line);border-radius:6px;padding:12px 15px;font-family:var(--mono);font-size:11.5px;line-height:1.7;color:#4B555C;max-height:330px;overflow:auto;white-space:pre-wrap;word-break:break-word}
 .result.empty{color:var(--ink3)}
 .j-key{color:var(--accent);font-weight:600}
@@ -220,13 +222,14 @@ details .result{margin-bottom:16px}
 </div>
 
 <div class="toolbar">
-<span class="lead">共 <b id="tb-count">15</b> 组接口 · 填写参数后点击「发送请求」即可调试</span>
+<span class="lead">共 <b id="tb-count">15</b> 组接口 · 填写参数后点击「发送请求」，输入框内按 Enter 也可发送</span>
 <span class="pill" id="tb-status">连接中…</span>
 <span class="pill" id="svc-status">检测服务中…</span>
 <span class="spacer"></span>
 <button type="button" id="btn-start" onclick="controlStart(this)">启动服务</button>
 <button type="button" id="btn-stop" onclick="controlStop(this)">停止服务</button>
 <button type="button" onclick="initData()">刷新辅助数据</button>
+<button type="button" onclick="resetFields()" title="清除本页记住的参数并恢复默认值">重置参数</button>
 </div>
 
 <div class="sec" id="sec1"><span class="num">01</span><h2>概览与接口清单</h2><span class="tag">服务自描述</span></div>
@@ -699,6 +702,94 @@ var SPECS = {
 
 var calls = 0;
 
+/* ---------- 交互增强：Enter 发送 / 参数记忆 / 重置 ---------- */
+
+/* 输入框所属的请求：回车即发送，省掉「移鼠标点按钮」这一步 */
+var ENTER_MAP = {
+  'w-city':'weather', 'w-custom':'weather',
+  'c-expr':'calc',
+  't-dt':'tconv', 't-start':'tdiff', 't-end':'tdiff',
+  'u-val':'uconv',
+  'cat-limit':'cats', 'cat-img-id':'catimage', 'cat-q':'catbreeds', 'cat-list-limit':'catbreeds',
+  'dog-fact-limit':'dogfacts', 'dog-q':'doglist', 'dog-list-limit':'doglist'
+};
+
+var SAVE_KEY = 'apifields.v1';
+var _saveTimer = 0;
+
+function collectFields(){
+  var out = {};
+  document.querySelectorAll('.form-grid input[id], .form-grid select[id]').forEach(function(el){
+    out[el.id] = el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value;
+  });
+  return out;
+}
+
+function saveFields(){
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(function(){
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(collectFields())); } catch (e) { /* 隐私模式等写入失败可忽略 */ }
+  }, 250);
+}
+
+function setFieldValue(id, v){
+  var el = $(id);
+  if (!el) return false;
+  if (el.tagName === 'SELECT') {
+    // 选项还没填充或选项已变（如品种表更新）时不强塞，保留当前选中
+    var hit = [].slice.call(el.options).some(function(o){ return o.value === v; });
+    if (!hit) return false;
+    el.value = v;
+    return true;
+  }
+  if (el.type === 'checkbox') { el.checked = v === '1'; return true; }
+  el.value = v;
+  return true;
+}
+
+/* 恢复顺序讲究：先文本与静态下拉；类别恢复后要重建单位下拉，再套单位选择 */
+function restoreFields(){
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { saved = null; }
+  if (!saved || typeof saved !== 'object') return;
+  Object.keys(saved).forEach(function(id){
+    if (id === 'u-from' || id === 'u-to') return;
+    setFieldValue(id, saved[id]);
+  });
+  var catEl = $('u-cat');
+  var cat = (window.__cats || []).find(function(c){ return c.id === (catEl ? catEl.value : ''); });
+  if (cat && cat.units && cat.units.length) {
+    fillSelect('u-from', cat.units, 'id', 'label', saved['u-from'] || cat.units[0].id);
+    fillSelect('u-to', cat.units, 'id', 'label',
+      saved['u-to'] || PREFERRED_TO[cat.id] || cat.units[cat.units.length - 1].id);
+  }
+}
+
+function resetFields(){
+  try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* 忽略 */ }
+  location.reload();
+}
+
+/* 输入框回车即发送；输入法正在选词时的回车（isComposing / keyCode 229）不算 */
+document.addEventListener('keydown', function(ev){
+  if (ev.key !== 'Enter' || ev.isComposing || ev.keyCode === 229) return;
+  var el = ev.target;
+  if (!el || el.tagName !== 'INPUT' || !el.id) return;
+  var name = ENTER_MAP[el.id];
+  if (!name) return;
+  ev.preventDefault();
+  run(name);
+});
+
+/* 参数改动即写入本地，刷新页面或重启服务后不用重填 */
+document.addEventListener('input', function(ev){
+  if (ev.target && ev.target.closest && ev.target.closest('.form-grid')) saveFields();
+});
+document.addEventListener('change', function(ev){
+  if (ev.target && ev.target.closest && ev.target.closest('.form-grid')) saveFields();
+});
+
+
 /* ---------- 服务启动 / 停止（由常驻控制器提供 /control/*） ---------- */
 async function ctlStatus(){
   try {
@@ -762,6 +853,34 @@ async function controlStop(btn){
 
 /* ---------- 每个请求各自的「最终结果」区 ---------- */
 function fmt(n){ return (n === null || n === undefined) ? '—' : String(n); }
+
+var lastJson = {};   // 每个接口最近一次响应，供「复制 JSON」用
+var inflight = {};   // 同一接口上一次还没回来时，忽略重复点击
+
+/* 在每个结果区右上角加「复制 JSON」：复制最近一次响应的格式化全文 */
+function initCopyJson(){
+  document.querySelectorAll('pre.result[id^="res-"]').forEach(function(pre){
+    var name = pre.id.slice(4);
+    if ($('copy-' + name)) return;
+    // 结果区上方最近的 .res-head（中间可能夹着 final-box）
+    var head = pre.previousElementSibling;
+    while (head && !(head.classList && head.classList.contains('res-head'))) head = head.previousElementSibling;
+    if (!head) return;
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'copy-json'; btn.id = 'copy-' + name;
+    btn.textContent = '复制 JSON';
+    btn.addEventListener('click', function(){ copyJson(name, btn); });
+    head.appendChild(btn);
+  });
+}
+
+async function copyJson(name, btn){
+  var old = btn.textContent, j = lastJson[name];
+  btn.disabled = true;
+  if (!j) btn.textContent = '暂无数据';
+  else btn.textContent = (await writeClipboard(JSON.stringify(j, null, 2))) ? '已复制' : '复制失败';
+  setTimeout(function(){ btn.textContent = old; btn.disabled = false; }, 1200);
+}
 
 /* 在每个原始 JSON 结果区上方插入结论块，避免每个卡片重复写 HTML */
 function initFinalBoxes(){
@@ -952,7 +1071,17 @@ function highlight(obj){
 async function run(name, silent){
   var spec = SPECS[name];
   if (!spec) return null;
+  if (inflight[name]) return null;    // 同一接口还在路上：忽略连点，避免重复打上游
+  inflight[name] = true;
+
   var pill = $('pill-'+name), meta = $('meta-'+name), res = $('res-'+name);
+  // 只锁本卡片里会发这个请求的按钮，复制 cURL / 换一张之外的按钮不受影响
+  var scope = res ? res.closest('.item, details') : null;
+  var lock = scope ? [].slice.call(scope.querySelectorAll('button')).filter(function(b){
+    return (b.getAttribute('onclick') || '').indexOf("run('" + name + "'") >= 0;
+  }) : [];
+  lock.forEach(function(b){ b.disabled = true; });
+
   if (!silent && pill) { pill.textContent = '请求中…'; pill.className = 'pill'; }
   var t0 = performance.now();
   try {
@@ -963,6 +1092,7 @@ async function run(name, silent){
     }
     var resp = await fetch(spec.path(), init);
     var json = await resp.json();
+    lastJson[name] = json;
     var clientMs = Math.round(performance.now() - t0);
     if (!silent) {
       calls++;
@@ -997,6 +1127,9 @@ async function run(name, silent){
       if (name === 'dogs' || name === 'dogimage' || name === 'dogdetail') renderDogPreview(name, null);
     }
     return null;
+  } finally {
+    inflight[name] = false;
+    lock.forEach(function(b){ b.disabled = false; });
   }
 }
 
@@ -1129,11 +1262,15 @@ async function initData(){
   var online = !!health;
   st.textContent = online ? '服务在线' : '服务未连接';
   st.className = 'pill' + (online ? ' ok' : '');
+
+  restoreFields();   // 下拉填充完再套一次记忆参数，避免被默认值覆盖
 }
 
+initCopyJson();
 initFinalBoxes();
 initNav();
 initTop();
+restoreFields();   // 先把文本输入填回（此时动态下拉还没选项，函数内部会自动跳过）
 initData();
 ctlStatus().then(paintCtl);
 // 页面在后台时不必轮询；切回来立刻补一次
