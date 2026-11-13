@@ -17,6 +17,13 @@ publish/
 *.pdb
 *.dll.config
 
+# ---------- 本地密钥（绝不入库） ----------
+.env.local
+.env
+*.env.local
+.env.*
+!.env.example
+
 # ---------- 工具与工作区 ----------
 .vs/
 .vscode/

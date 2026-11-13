@@ -47,7 +47,10 @@ EPS = [
     ("/api/units/categories", None, "GET"),
     ("/api/units/convert?category=length&value=1&from=m&to=ft", None, "GET"),
     ("/api/units/convert?category=currency&value=100&from=CNY&to=USD", None, "GET"),
+    ("/api/cats/breeds?limit=20", None, "GET"),
+    ("/api/cats/breeds/pers", None, "GET"),
 ]
+# 注：/api/cats/random 会真实请求上游，故意不纳入压测循环，避免压测把上游打爆。
 
 
 def one(conn, path, body, method):

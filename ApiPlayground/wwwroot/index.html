@@ -163,7 +163,14 @@ details .result{margin-bottom:16px}
 .final-box.empty::before{color:var(--ink3)}
 .final-box.fail{background:#F8FAFB;border-color:var(--line)}
 .final-box.fail::before{color:var(--ink2)}
-@media print{.res-head,.chips,.form-grid{display:none!important}}
+/* 猫图预览：仍是细边框 + 白底，不加阴影/渐变；图片本身是内容不是装饰 */
+.cat-preview{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;margin-top:12px;padding:12px;border:1px dashed var(--line);border-radius:6px;background:var(--paper);min-height:68px}
+.cat-preview.empty{color:var(--ink3);font-size:12px;align-items:center}
+.cat-fig{margin:0;max-width:250px}
+.cat-fig img{display:block;max-width:100%;max-height:230px;border:1px solid var(--line);border-radius:5px;background:var(--paper);object-fit:contain}
+.cat-fig figcaption{font-size:11px;color:var(--ink2);line-height:1.5;margin-top:5px;word-break:break-all}
+.cat-fig.img-fail::after{content:"图片加载失败（CDN 或网络受限），接口数据仍可查看";display:block;font-size:11px;color:var(--ink3);line-height:1.5}
+@media print{.res-head,.chips,.form-grid,.cat-preview{display:none!important}}
 </style>
 </head>
 <body>
@@ -178,18 +185,19 @@ details .result{margin-bottom:16px}
 <a href="#sec3"><span>03</span>表达式计算器</a>
 <a href="#sec4"><span>04</span>时间与时区</a>
 <a href="#sec5"><span>05</span>单位换算与汇率</a>
-<a href="#sec6"><span>06</span>响应契约与调用方式</a>
+<a href="#sec6"><span>06</span>猫咪图片 TheCatAPI</a>
+<a href="#sec7"><span>07</span>响应契约与调用方式</a>
 </nav>
 <div class="side-rule"></div>
 <div class="side-block">
 <div class="k">概况</div>
-<div class="row"><span>已注册端点</span><b id="side-endpoints">12</b></div>
+<div class="row"><span>已注册端点</span><b id="side-endpoints">16</b></div>
 <div class="row"><span>运行时</span><b>.NET 10</b></div>
 <div class="row"><span>监听端口</span><b>5188</b></div>
 <div class="row"><span>第三方包</span><b>0</b></div>
 </div>
-<div class="side-status">统一响应包装 · 开放访问<br>天气断网时自动降级</div>
-<div class="side-foot">数据来源：Open-Meteo / 本地确定性模拟<br>零 NuGet 依赖 · 单文件静态页面</div>
+<div class="side-status">统一响应包装 · 开放访问<br>天气断网时自动降级<br>猫图上游异常时回退缓存</div>
+<div class="side-foot">数据来源：Open-Meteo / TheCatAPI / 本地确定性模拟<br>密钥仅存本地 .env.local，不入库<br>零 NuGet 依赖 · 单文件静态页面</div>
 </aside>
 
 <main class="content">
@@ -197,13 +205,13 @@ details .result{margin-bottom:16px}
 <header class="masthead">
 <div class="eyebrow">本地服务 · 交互式 API 文档</div>
 <h1>.NET 10 API 调试台</h1>
-<p class="meta">2026-11-12 &nbsp;·&nbsp; Minimal API &nbsp;·&nbsp; 12 个端点 &nbsp;·&nbsp; 零第三方依赖 &nbsp;·&nbsp; 端口 5188</p>
+<p class="meta">2026-11-13 &nbsp;·&nbsp; Minimal API &nbsp;·&nbsp; 16 个端点 &nbsp;·&nbsp; 零第三方依赖 &nbsp;·&nbsp; 端口 5188</p>
 </header>
 
-<div class="notice"><b>所有接口统一返回信封结构</b> <code>{ success, data, error, elapsedMs, timestamp }</code>，参数错误也以 HTTP 200 + <code>error</code> 字段表达。<br>天气优先读取 Open-Meteo 实时观测；上游不可用时自动降级为本地模拟数据，返回值中的 <code>source</code> 会标明 <code>live</code> 或 <code>fallback</code>，页面与接口始终可用。</div>
+<div class="notice"><b>所有接口统一返回信封结构</b> <code>{ success, data, error, elapsedMs, timestamp }</code>，参数错误也以 HTTP 200 + <code>error</code> 字段表达。<br>天气优先读取 Open-Meteo 实时观测；上游不可用时自动降级为本地模拟数据，返回值中的 <code>source</code> 会标明 <code>live</code> 或 <code>fallback</code>。猫咪接口走 TheCatAPI，密钥只从本机环境变量或 <code>.env.local</code> 读取（不入库），未配置时自动使用公开匿名额度。</div>
 
 <div class="stats">
-<div class="stat"><div class="n" id="stat-endpoints">12</div><div class="l">已注册端点</div></div>
+<div class="stat"><div class="n" id="stat-endpoints">16</div><div class="l">已注册端点</div></div>
 <div class="stat"><div class="n" id="stat-runtime">10.0</div><div class="l">运行时版本</div></div>
 <div class="stat"><div class="n" id="stat-weather">待查</div><div class="l">天气数据源</div></div>
 <div class="stat"><div class="n" id="stat-calls">0</div><div class="l">本次会话调用</div></div>
@@ -211,7 +219,7 @@ details .result{margin-bottom:16px}
 </div>
 
 <div class="toolbar">
-<span class="lead">共 <b id="tb-count">11</b> 组接口 · 填写参数后点击「发送请求」即可调试</span>
+<span class="lead">共 <b id="tb-count">15</b> 组接口 · 填写参数后点击「发送请求」即可调试</span>
 <span class="pill" id="tb-status">连接中…</span>
 <span class="pill" id="svc-status">检测服务中…</span>
 <span class="spacer"></span>
@@ -390,7 +398,67 @@ details .result{margin-bottom:16px}
 <pre class="result empty" id="res-ucats">点击上方按钮查看响应。</pre>
 </details>
 
-<div class="sec" id="sec6"><span class="num">06</span><h2>响应契约与调用方式</h2><span class="tag">统一包装</span></div>
+<div class="sec" id="sec6"><span class="num">06</span><h2>猫咪图片 · TheCatAPI</h2><span class="tag">需密钥 / 匿名额度可用</span></div>
+
+<div class="item">
+<h3><span class="idx">09</span>随机猫图（可按品种筛选） <span class="note">GET</span></h3>
+<span class="path">GET /api/cats/random?limit=2&amp;breed=pers&amp;hasBreeds=1&amp;size=med</span>
+<div class="why">调用 TheCatAPI <code>/v1/images/search</code>，返回图片 ID、直链、宽高、宽高比与品种中文名。密钥由服务端附加，不会出现在页面或 URL 中；上游异常时回退到最近一次成功的图片并标记 <code>stale</code>。</div>
+<div class="form-grid">
+<div class="field"><label for="cat-limit">数量（1~10）</label><input id="cat-limit" value="2" spellcheck="false"></div>
+<div class="field"><label for="cat-breed">品种（留空为不限）</label><select id="cat-breed"></select></div>
+<div class="field"><label for="cat-size">图片尺寸</label><select id="cat-size"><option value="">full · 原图</option><option value="med">med · 中</option><option value="small">small · 小</option><option value="thumb">thumb · 缩略</option></select></div>
+<div class="field full"><label class="pick"><input type="checkbox" id="cat-hasbreed"> 仅返回带品种信息的图片（has_breeds=1）</label></div>
+</div>
+<div class="cmdrow"><span class="note">每次点击都会重新随机 · 图片由 cdn2.thecatapi.com 直出</span><button type="button" onclick="run('cats')">换一张</button><button type="button" onclick="copyCurl('cats', this)">复制 cURL</button><button type="button" class="primary" onclick="run('cats')">发送请求</button></div>
+<div class="cat-preview empty" id="cat-preview">尚未调用，发送请求后这里显示猫图预览。</div>
+<div class="res-head"><span class="pill" id="pill-cats">尚未调用</span><span class="note" id="meta-cats"></span></div>
+<pre class="result empty" id="res-cats">点击「发送请求」查看响应。</pre>
+</div>
+
+<div class="item">
+<h3><span class="idx">10</span>按图片 ID 查图 <span class="note">GET</span></h3>
+<span class="path">GET /api/cats/images/{id}</span>
+<div class="why">用图片 ID 精确取回单张图。最近请求过的图片会先命中本地缓存（<code>source=cache</code>），不再打扰上游；可直接把上一张随机图的 ID 填进来试。</div>
+<div class="form-grid">
+<div class="field full"><label for="cat-img-id">图片 ID</label><input id="cat-img-id" placeholder="如：MTY3ODIyMQ，或点下方「用上一张图的 ID」" spellcheck="false"></div>
+</div>
+<div class="cmdrow"><span class="note">ID 只允许字母与数字</span><button type="button" onclick="useLastCatId()">用上一张图的 ID</button><button type="button" onclick="copyCurl('catimage', this)">复制 cURL</button><button type="button" class="primary" onclick="run('catimage')">发送请求</button></div>
+<div class="cat-preview empty" id="catimg-preview">尚未调用，发送请求后这里显示猫图预览。</div>
+<div class="res-head"><span class="pill" id="pill-catimage">尚未调用</span><span class="note" id="meta-catimage"></span></div>
+<pre class="result empty" id="res-catimage">点击「发送请求」查看响应。</pre>
+</div>
+
+<div class="item">
+<h3><span class="idx">11</span>品种详情 <span class="note">GET</span></h3>
+<span class="path">GET /api/cats/breeds/pers</span>
+<div class="why">按 TheCatAPI 的 4 字母品种 ID 返回中文名、原产地、性格、寿命、体重与简介。常见品种已附中文名，未收录的保留英文原名。</div>
+<div class="form-grid">
+<div class="field"><label for="cat-breed-one">品种</label><select id="cat-breed-one"></select></div>
+</div>
+<div class="cmdrow"><span class="note">下拉由 /api/cats/breeds 填充（30 分钟缓存）</span><button type="button" onclick="copyCurl('catbreed', this)">复制 cURL</button><button type="button" class="primary" onclick="run('catbreed')">发送请求</button></div>
+<div class="res-head"><span class="pill" id="pill-catbreed">尚未调用</span><span class="note" id="meta-catbreed"></span></div>
+<pre class="result empty" id="res-catbreed">点击「发送请求」查看响应。</pre>
+</div>
+
+<details>
+<summary>品种列表、密钥配置与降级策略</summary>
+<ul>
+<li><b>密钥</b>：服务端按 <code>THECATAPI_KEY</code> 环境变量 → 仓库根 <code>.env.local</code> 的顺序读取；两者都没有时使用官方公开匿名额度，响应 <code>authenticated</code> 会标明。<b>密钥绝不写入源码或提交到仓库</b>，<code>/api/health</code> 只暴露是否已配置、不暴露内容。</li>
+<li><b>品种列表</b>：<code>/api/cats/breeds</code> 返回全部品种（实测 107 个），支持 <code>q</code> 按名称/中文名/ID/原产地过滤、<code>limit</code> 限制条数；服务端缓存 30 分钟并做单航班合并，重复调用是亚毫秒级。</li>
+<li><b>降级</b>：图片请求失败时返回最近 20 张成功结果并标 <code>stale=true</code>；连接超时 2 秒、总超时 6 秒，不会让页面一直转圈。上游 401/429 会分别返回 <code>CAT_API_KEY_INVALID</code> / <code>CAT_API_RATE_LIMIT</code>。</li>
+<li>图片直链来自 TheCatAPI CDN，预览需要浏览器能访问外网；若被网络限制，接口 JSON 数据仍然完整可用。</li>
+</ul>
+<div class="form-grid">
+<div class="field"><label for="cat-q">名称 / 原产地关键字</label><input id="cat-q" placeholder="如：siamese / 波斯 / Japan" spellcheck="false"></div>
+<div class="field"><label for="cat-list-limit">返回条数（0 = 全部）</label><input id="cat-list-limit" value="20" spellcheck="false"></div>
+</div>
+<button type="button" onclick="run('catbreeds')">查看 /api/cats/breeds 原始响应</button>
+<div class="res-head"><span class="pill" id="pill-catbreeds">尚未调用</span><span class="note" id="meta-catbreeds"></span></div>
+<pre class="result empty" id="res-catbreeds">点击上方按钮查看响应。</pre>
+</details>
+
+<div class="sec" id="sec7"><span class="num">07</span><h2>响应契约与调用方式</h2><span class="tag">统一包装</span></div>
 
 <pre>{
   "success": true,
@@ -424,7 +492,13 @@ curl 'http://127.0.0.1:5188/api/time/convert?datetime=2026-11-12%2013:30&amp;fro
 curl 'http://127.0.0.1:5188/api/units/convert?category=temperature&amp;from=c&amp;to=f&amp;value=100'
 
 # 汇率换算（100 人民币 → 美元）
-curl 'http://127.0.0.1:5188/api/units/convert?category=currency&amp;from=cny&amp;to=usd&amp;value=100'</pre>
+curl 'http://127.0.0.1:5188/api/units/convert?category=currency&amp;from=cny&amp;to=usd&amp;value=100'
+
+# 随机猫图（波斯猫，2 张，只要带品种信息的）
+curl 'http://127.0.0.1:5188/api/cats/random?limit=2&amp;breed=pers&amp;hasBreeds=1'
+
+# 品种详情
+curl 'http://127.0.0.1:5188/api/cats/breeds/pers'</pre>
 
 <details>
 <summary>错误码一览（均以 success=false 返回）</summary>
@@ -434,12 +508,14 @@ curl 'http://127.0.0.1:5188/api/units/convert?category=currency&amp;from=cny&amp
 <li><code>EMPTY_EXPRESSION</code> / <code>INVALID_TOKEN</code> / <code>UNMATCHED_PARENTHESIS</code> / <code>DIVIDE_BY_ZERO</code> / <code>MATH_DOMAIN_ERROR</code>：表达式解析与数学定义域问题。</li>
 <li><code>INVALID_TIMEZONE</code> / <code>INVALID_DATETIME</code> / <code>MISSING_DATETIME</code>：时区与时间格式问题。</li>
 <li><code>INVALID_JSON</code>：POST 请求体不是合法 JSON；<code>INTERNAL_ERROR</code>：未预期的服务端异常。</li>
+<li><code>INVALID_LIMIT</code> / <code>INVALID_SIZE</code> / <code>INVALID_BREED</code> / <code>MISSING_BREED</code> / <code>INVALID_IMAGE_ID</code> / <code>MISSING_IMAGE_ID</code>：猫咪接口入参问题。</li>
+<li><code>CAT_API_KEY_INVALID</code> / <code>CAT_API_RATE_LIMIT</code>：密钥被拒（401）或触发限流（429）；<code>CAT_UPSTREAM_UNAVAILABLE</code>：上游不可用且无缓存；<code>CAT_NO_IMAGE</code> / <code>CAT_BREED_NOT_FOUND</code> / <code>CAT_IMAGE_NOT_FOUND</code>：查询无结果。</li>
 </ul>
 </details>
 
-<div class="callout"><b>注意</b>：本服务面向本地演示，开放访问、未做鉴权与限流。天气上游为公开免 Key 服务，断网时返回的是模拟数据，不可用于生产决策。若需部署到公网，请补充鉴权、超时与限流策略。</div>
+<div class="callout"><b>注意</b>：本服务面向本地演示，开放访问、未做鉴权与限流。天气上游为公开免 Key 服务，断网时返回的是模拟数据，不可用于生产决策；猫咪接口的密钥只存本地，响应里不会回传。若需部署到公网，请补充鉴权、超时与限流策略，并改用服务端密钥注入而非本地文件。</div>
 
-<div class="foot">.NET 10 Minimal API · 仅 Microsoft.AspNetCore.App 框架引用，零 NuGet 包 · 页面为单文件 HTML / CSS / JS，无外部资源。<br>启动：<code>dotnet run --project ApiPlayground</code> 或双击 <code>start.cmd</code>；监听地址可用环境变量 <code>API_URL</code> 或 <code>--urls</code> 覆盖。</div>
+<div class="foot">.NET 10 Minimal API · 仅 Microsoft.AspNetCore.App 框架引用，零 NuGet 包 · 页面为单文件 HTML / CSS / JS，无外部资源（猫图除外）。<br>启动：<code>dotnet run --project ApiPlayground</code> 或双击 <code>start.cmd</code>；监听地址可用环境变量 <code>API_URL</code> 或 <code>--urls</code> 覆盖；TheCatAPI 密钥用 <code>THECATAPI_KEY</code> 或 <code>.env.local</code> 配置。</div>
 
 </main>
 </div>
@@ -504,7 +580,17 @@ var SPECS = {
   tconv:  { method:'GET', path:function(){ return '/api/time/convert?'+[q('datetime',val('t-dt')),q('from',val('t-from')),q('to',val('t-to'))].join('&'); } },
   tdiff:  { method:'GET', path:function(){ return '/api/time/diff?'+[q('start',val('t-start')),q('end',val('t-end'))].join('&'); } },
   ucats:  { method:'GET', path:function(){ return '/api/units/categories'; } },
-  uconv:  { method:'GET', path:function(){ return '/api/units/convert?'+[q('category',val('u-cat')),q('from',val('u-from')),q('to',val('u-to')),q('value',val('u-val'))].join('&'); } }
+  uconv:  { method:'GET', path:function(){ return '/api/units/convert?'+[q('category',val('u-cat')),q('from',val('u-from')),q('to',val('u-to')),q('value',val('u-val'))].join('&'); } },
+  catall: { method:'GET', path:function(){ return '/api/cats/breeds'; } },
+  cats:   { method:'GET', path:function(){
+              var p = [q('limit', val('cat-limit') || '1')];
+              var b = val('cat-breed'); if (b) p.push(q('breed', b));
+              if ($('cat-hasbreed') && $('cat-hasbreed').checked) p.push(q('hasBreeds','1'));
+              var s = val('cat-size'); if (s) p.push(q('size', s));
+              return '/api/cats/random?' + p.join('&'); } },
+  catimage:  { method:'GET', path:function(){ return '/api/cats/images/' + encodeURIComponent(val('cat-img-id')); } },
+  catbreed:  { method:'GET', path:function(){ return '/api/cats/breeds/' + encodeURIComponent(val('cat-breed-one') || 'pers'); } },
+  catbreeds: { method:'GET', path:function(){ return '/api/cats/breeds?' + [q('q', val('cat-q')), q('limit', val('cat-list-limit') || '0')].join('&'); } }
 };
 
 var calls = 0;
@@ -573,7 +659,7 @@ async function controlStop(btn){
 /* ---------- 每个请求各自的「最终结果」区 ---------- */
 function fmt(n){ return (n === null || n === undefined) ? '—' : String(n); }
 
-/* 在每个原始 JSON 结果区上方插入结论块，避免 11 个卡片重复写 HTML */
+/* 在每个原始 JSON 结果区上方插入结论块，避免每个卡片重复写 HTML */
 function initFinalBoxes(){
   document.querySelectorAll('pre.result[id^="res-"]').forEach(function(pre){
     var name = pre.id.slice(4);
@@ -618,9 +704,60 @@ function summarize(name, d){
           + ' · ' + fmt(d.rateExpression) + ' · ' + fmt(d.rateUpdatedAt)
           + '（' + (d.source === 'live' ? '公开接口' : '内置快照') + '）'
         : fmt(d.input) + ' ' + fmt(d.from) + ' = ' + fmt(d.display) + ' ' + fmt(d.to) + '（' + fmt(d.categoryLabel) + '）';
+      case 'cats':    return d.count + ' 张猫图 · '
+        + (d.images && d.images[0] ? fmt(d.images[0].breedLabel) + ' · ' + fmt(d.images[0].id) : '—')
+        + ' · ' + (d.stale ? '上游异常·旧缓存' : (d.source === 'live' ? '实时接口' : '本地缓存'))
+        + ' · ' + (d.authenticated ? '已带密钥' : '匿名额度');
+      case 'catimage':  return fmt(d.image && d.image.id) + ' · ' + fmt(d.image && d.image.breedLabel)
+        + ' · ' + fmt(d.image && d.image.width) + '×' + fmt(d.image && d.image.height)
+        + ' · ' + (d.source === 'cache' ? '命中本地缓存' : '实时接口');
+      case 'catbreed':  return fmt(d.nameZh) + '（' + fmt(d.name) + '）· ' + fmt(d.origin)
+        + ' · 寿命 ' + fmt(d.lifeSpan) + ' 年 · ' + String(fmt(d.temperament)).slice(0, 46);
+      case 'catbreeds': return '共 ' + d.total + ' 个品种 · 本次返回 ' + d.returned + ' 个 · '
+        + ((d.items || []).slice(0, 3).map(function(b){ return b.nameZh || b.name; }).join(' / ') || '无匹配')
+        + (d.cached ? ' · 命中缓存' : ' · 实时');
+      case 'catall':    return '品种表 ' + d.total + ' 个，已用于填充页面下拉';
       default:        return '已返回结果数据';
     }
   } catch (e) { return '已返回结果数据'; }
+}
+
+/* 猫图预览：用 DOM API 构建，避免把上游 URL 拼进 HTML；加载失败时给出文字说明 */
+function renderCatPreview(name, json){
+  var box = $(name === 'cats' ? 'cat-preview' : 'catimg-preview');
+  if (!box) return;
+  var d = json && json.success === true ? json.data : null;
+  var imgs = d ? (d.images || (d.image ? [d.image] : [])) : [];
+  if (!imgs.length) {
+    box.className = 'cat-preview empty';
+    box.textContent = d ? '本次没有可预览的图片。' : '暂无图片可预览，发送请求后这里显示猫图。';
+    return;
+  }
+  if (imgs[0].id) window.__lastCatId = imgs[0].id;
+  box.className = 'cat-preview';
+  box.innerHTML = '';
+  imgs.slice(0, 6).forEach(function(im){
+    var fig = document.createElement('figure'); fig.className = 'cat-fig';
+    var img = document.createElement('img');
+    img.alt = im.breedLabel || '猫图'; img.src = im.url;
+    img.addEventListener('error', function(){ fig.classList.add('img-fail'); img.style.display = 'none'; });
+    var cap = document.createElement('figcaption');
+    cap.textContent = (im.breedLabel || '未标注品种') + ' · ' + (im.id || '—') + ' · '
+      + fmt(im.width) + '×' + fmt(im.height);
+    fig.appendChild(img); fig.appendChild(cap); box.appendChild(fig);
+  });
+}
+
+/* 把最近一次随机图的 ID 填进「按 ID 查图」，没有就先静默取一张 */
+async function useLastCatId(){
+  var id = window.__lastCatId;
+  if (!id) {
+    var r = await run('cats', true);
+    id = (r && r.success && r.data && r.data.images && r.data.images[0]) ? r.data.images[0].id : '';
+  }
+  if (!id) { window.alert('暂时拿不到图片 ID，请先检查服务与网络'); return; }
+  $('cat-img-id').value = id;
+  run('catimage');
 }
 
 function esc(s){
@@ -687,6 +824,7 @@ async function run(name, silent){
           : '兜底';
       }
       renderFinal(name, json);
+      if (name === 'cats' || name === 'catimage') renderCatPreview(name, json);
     }
     return json;
   } catch (e) {
@@ -697,6 +835,7 @@ async function run(name, silent){
       res.textContent = '无法连接服务：' + (e && e.message ? e.message : e)
         + '\n请确认服务正在运行，且监听端口为 5188。';
       renderFinal(name, null, (e && e.message) ? e.message : String(e));
+      if (name === 'cats' || name === 'catimage') renderCatPreview(name, null);
     }
     return null;
   }
@@ -740,6 +879,7 @@ function fillSelect(id, items, valueKey, labelKey, selected){
   el.innerHTML = '';
   if (!items || !items.length) {
     var empty = document.createElement('option');
+    empty.value = '';
     empty.textContent = '（服务未就绪）';
     el.appendChild(empty);
     return;
@@ -770,7 +910,7 @@ function setExpr(s){
 async function initData(){
   var results = await Promise.all([
     run('cities', true), run('tzones', true), run('ucats', true),
-    run('index', true), run('health', true)
+    run('index', true), run('health', true), run('catall', true)
   ]);
   var pick = function(r){ return r && r.success && r.data ? r.data : []; };
   window.__cities = pick(results[0]);
@@ -778,6 +918,8 @@ async function initData(){
   window.__cats   = pick(results[2]);
   window.__index  = pick(results[3]);
   var health = results[4] && results[4].success ? results[4].data : null;
+  var catList = results[5] && results[5].success && results[5].data ? results[5].data : { total:0, items:[] };
+  window.__breeds = catList.items || [];
 
   fillSelect('w-city',
     window.__cities.map(function(c){ return { value:c.name, label:c.name + ' · ' + c.region }; }),
@@ -792,6 +934,12 @@ async function initData(){
     window.__cats.map(function(c){ return { value:c.id, label:c.label + ' · ' + c.baseUnit + ' · ' + c.unitCount + ' 单位' }; }),
     'value', 'label', 'length');
   onCatChange();
+
+  var breedOpts = window.__breeds.map(function(b){
+    return { value:b.id, label:(b.nameZh && b.nameZh !== b.name ? b.nameZh + ' · ' : '') + b.name + ' (' + b.id + ')' };
+  });
+  fillSelect('cat-breed', [{ value:'', label:'不限品种（随机）' }].concat(breedOpts), 'value', 'label', '');
+  fillSelect('cat-breed-one', breedOpts, 'value', 'label', 'pers');
 
   var tb = $('ep-table');
   tb.innerHTML = '';

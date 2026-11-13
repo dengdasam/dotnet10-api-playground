@@ -32,6 +32,7 @@ if (!isFirstBackend)
 }
 
 builder.Services.AddSingleton<WeatherService>();
+builder.Services.AddSingleton<CatService>();
 
 // 日志级别：直接 dotnet run 时默认 Warning（压测里每个请求 4 行 Info 的同步 I/O 比业务本身还贵）；
 // 从控制台窗口拉起时控制器会注入 API_LOG_LEVEL=Information，窗口里就能看到请求流水。
@@ -76,6 +77,10 @@ var endpoints = new[]
     new { method = "GET",      path = "/api/time/diff",        section = "时间",   description = "两个时间之间的差值" },
     new { method = "GET",      path = "/api/units/categories", section = "换算",   description = "单位类别与单位表（含 14 种货币）" },
     new { method = "GET",      path = "/api/units/convert",    section = "换算",   description = "长度/重量/温度/数据/速度/面积/体积/时间/汇率换算" },
+    new { method = "GET",      path = "/api/cats/random",      section = "猫咪",   description = "随机猫图（可按品种/数量/尺寸筛选）" },
+    new { method = "GET",      path = "/api/cats/breeds",      section = "猫咪",   description = "TheCatAPI 品种列表（关键字搜索，缓存 30 分钟）" },
+    new { method = "GET",      path = "/api/cats/breeds/{id}", section = "猫咪",   description = "按 4 字母 ID 查单个品种详情" },
+    new { method = "GET",      path = "/api/cats/images/{id}", section = "猫咪",   description = "按图片 ID 查图（命中本地缓存则不请求上游）" },
 };
 
 // ---------- 概览 ----------
@@ -89,8 +94,9 @@ app.MapGet("/api/health", () => ApiWrap.Run(() => new
     listenUrl,
     publicUrl = "http://127.0.0.1:5188",
     serverTime = DateTimeOffset.Now.ToString("O"),
-    endpointCount = 12,
+    endpointCount = 16,
     weatherProvider = "Open-Meteo（不可用时自动降级为本地模拟）",
+    catApi = CatService.ConfigStatus(),
     dependencies = "仅 Microsoft.AspNetCore.App 框架引用，零 NuGet 包"
 }));
 
@@ -145,6 +151,20 @@ app.MapGet("/api/units/categories", () =>
 app.MapGet("/api/units/convert", async (string? category, string? @from, string? to, string? value) =>
     await ApiWrap.RunAsync(async () => await UnitConverter.ConvertAsync(category, @from, to, value)));
 
+// ---------- 猫咪图片（TheCatAPI） ----------
+// 路由顺序：静态路径必须先于 /{id} 参数路由注册，否则 "breeds" 会被当成 ID 吃掉。
+app.MapGet("/api/cats/breeds", async (string? q, string? limit, CatService cats) =>
+    await ApiWrap.RunAsync(async () => await cats.BreedsAsync(q, limit)));
+
+app.MapGet("/api/cats/random", async (string? limit, string? breed, string? hasBreeds, string? size, CatService cats) =>
+    await ApiWrap.RunAsync(async () => await cats.RandomAsync(limit, breed, hasBreeds, size)));
+
+app.MapGet("/api/cats/breeds/{id}", async (string id, CatService cats) =>
+    await ApiWrap.RunAsync(async () => await cats.BreedAsync(id)));
+
+app.MapGet("/api/cats/images/{id}", async (string id, CatService cats) =>
+    await ApiWrap.RunAsync(async () => await cats.ImageAsync(id)));
+
 // 内部端点：仅供 ServiceController 调用（控制器只转发 /api/*，此路径不对外暴露）
 // 延迟一小段时间再停机，确保本次响应能完整写回，Kestrel 会等在处理完在途请求后退出
 app.MapPost("/_internal/shutdown", () =>
@@ -183,6 +203,7 @@ if (int.TryParse(Environment.GetEnvironmentVariable("API_PARENT_PID"), out var p
 app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
 {
     await ExchangeRateService.WarmupAsync();
+    await CatService.WarmupAsync();   // 品种列表约 60+ 条，提前拉一次，页面下拉不必等
     try { await app.Services.GetRequiredService<WeatherService>().GetAsync("宁波"); } catch { /* 预热失败不影响服务 */ }
 }));
 

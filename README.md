@@ -15,7 +15,7 @@
                                                   ▼
                                    ┌──────────────────────────────┐
                                    │  ApiPlayground  :5180        │
-                                   │  Minimal API · 11 个端点      │
+                                   │  Minimal API · 16 个端点      │
                                    └──────────────────────────────┘
 ```
 
@@ -56,8 +56,27 @@
 | GET | `/api/time/diff?start=...&end=...` | 两个时间之间的差值 |
 | GET | `/api/units/categories` | 9 类 77 个单位（含 14 种货币） |
 | GET | `/api/units/convert?category=length&value=1&from=m&to=ft` | 长度/重量/温度/数据/速度/面积/体积/时间/汇率换算 |
+| GET | `/api/cats/random?limit=2&breed=pers&hasBreeds=1` | 随机猫图，可按品种 / 数量 / 尺寸筛选 |
+| GET | `/api/cats/breeds?q=siamese&limit=20` | TheCatAPI 品种列表（107 个，缓存 30 分钟） |
+| GET | `/api/cats/breeds/pers` | 按 4 字母 ID 查品种详情 |
+| GET | `/api/cats/images/{id}` | 按图片 ID 查图（命中本地缓存则不请求上游） |
 
 汇率走 <https://open.er-api.com> 公开接口（免 Key），以 USD 交叉换算；上游不可用时回落到内置快照，响应里 `provider` / `note` 会标明来源。
+
+### 配置 TheCatAPI 密钥
+
+猫咪接口支持官方公开匿名额度，**不配置也能用**。想用自己的 key 提升额度时，二选一：
+
+```bash
+# 方式一：环境变量（优先级最高）
+set THECATAPI_KEY=live_你的密钥        # Windows CMD
+export THECATAPI_KEY=live_你的密钥     # bash / macOS / Linux
+
+# 方式二：复制示例文件后填入密钥，重启服务即可
+cp .env.example .env.local
+```
+
+服务端按 `THECATAPI_KEY` → 仓库根 `.env.local` 的顺序读取，请求时自动附加 `x-api-key` 头；**密钥不会出现在页面、URL 或响应里**，`/api/health` 只回报是否已配置。`.env.local` 已被 `.gitignore` 排除，请务必不要把它提交到公开仓库。
 
 ## 控制台窗口
 
@@ -88,6 +107,7 @@
 - **零 NuGet 依赖**：只用 framework reference；页面是单文件 HTML/CSS/JS，无构建步骤。
 - **天气三级缓存**：按城市缓存 3 分钟 + 单航班（并发同一城市只打一次上游）+ 失败回退旧缓存，响应带 `cached` / `cacheAgeSeconds`。
 - **汇率单航班 + 启动预热**：服务就绪即在后台拉一次汇率，首次换算不再等 1.3 秒。
+- **猫咪接口**：品种列表 30 分钟缓存 + 单航班；最近 20 张图留作上游故障兜底（标 `stale`）；连接超时 2 秒、总超时 6 秒；密钥只从本机环境变量 / `.env.local` 读取。
 - **单实例保护**：控制器与主服务各按端口加命名互斥体，重复双击只会打开页面，不会崩，也不会两个后端分走请求。
 - **父子联动**：主服务通过 `API_PARENT_PID` 反向监视控制器，控制器被强杀也会自行退出。
 - **反代正确处理 body**：转发前先读成字节数组，避免 POST 丢包。
@@ -101,7 +121,8 @@
 ├── ApiPlayground/                # 主服务（Minimal API，:5180）
 │   ├── Program.cs                # 端点注册、日志、单实例、父进程守护
 │   ├── ApiEnvelope.cs            # 统一响应信封
-│   ├── Services/                 # 天气 / 汇率 / 时间 / 单位 / 表达式 / 数字格式
+│   ├── Services/                 # 天气 / 汇率 / 时间 / 单位 / 表达式 / 猫图 / 数字格式
+│   │   └── CatService.cs         # TheCatAPI 封装（密钥注入、缓存、降级）
 │   ├── wwwroot/index.html        # 调试页（双栏文档站，单文件零依赖）
 │   └── README.md                 # 主服务详细文档（接口、缓存、性能）
 ├── ServiceController/            # 控制器（:5188，页面 + 反代 + 进程管理）
@@ -109,6 +130,8 @@
 │   ├── BackendProcess.cs         # 子进程启停、日志收集、崩溃判定
 │   ├── ConsoleShell.cs           # 窗口交互命令、精简日志渲染
 │   └── ServiceBuild.cs           # 编译封装
+├── .env.example                  # 密钥配置示例（占位值，可入库）
+├── .env.local                    # 本机真实密钥（已被忽略，不入库）
 ├── start.cmd / start.sh          # 一键启动（已编译则跳过编译）
 ├── publish.cmd / publish.sh      # 发布单文件 Start-ApiPlayground.exe
 ├── bench.py                      # keep-alive 精测 + 并发吞吐基准
