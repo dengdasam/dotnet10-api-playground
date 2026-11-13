@@ -33,6 +33,7 @@ if (!isFirstBackend)
 
 builder.Services.AddSingleton<WeatherService>();
 builder.Services.AddSingleton<CatService>();
+builder.Services.AddSingleton<DogService>();
 
 // 日志级别：直接 dotnet run 时默认 Warning（压测里每个请求 4 行 Info 的同步 I/O 比业务本身还贵）；
 // 从控制台窗口拉起时控制器会注入 API_LOG_LEVEL=Information，窗口里就能看到请求流水。
@@ -81,6 +82,12 @@ var endpoints = new[]
     new { method = "GET",      path = "/api/cats/breeds",      section = "猫咪",   description = "TheCatAPI 品种列表（关键字搜索，缓存 30 分钟）" },
     new { method = "GET",      path = "/api/cats/breeds/{id}", section = "猫咪",   description = "按 4 字母 ID 查单个品种详情" },
     new { method = "GET",      path = "/api/cats/images/{id}", section = "猫咪",   description = "按图片 ID 查图（命中本地缓存则不请求上游）" },
+    new { method = "GET",      path = "/api/dogs/breeds",      section = "狗狗",   description = "犬种列表（283 个，支持关键字/分组/低敏筛选）" },
+    new { method = "GET",      path = "/api/dogs/breeds/{id}", section = "狗狗",   description = "犬种详情（UUID / 英文名 / 中文名均可）" },
+    new { method = "GET",      path = "/api/dogs/random",      section = "狗狗",   description = "随机犬图（附品种信息与图片署名）" },
+    new { method = "GET",      path = "/api/dogs/image",       section = "狗狗",   description = "解析上游 302 图片地址（可指定犬种/尺寸）" },
+    new { method = "GET",      path = "/api/dogs/facts",       section = "狗狗",   description = "随机狗狗趣闻（上游 no-store，每次不同）" },
+    new { method = "GET",      path = "/api/dogs/groups",      section = "狗狗",   description = "犬种分组统计（AKC 9 组）" },
 };
 
 // ---------- 概览 ----------
@@ -94,9 +101,10 @@ app.MapGet("/api/health", () => ApiWrap.Run(() => new
     listenUrl,
     publicUrl = "http://127.0.0.1:5188",
     serverTime = DateTimeOffset.Now.ToString("O"),
-    endpointCount = 16,
+    endpointCount = 22,
     weatherProvider = "Open-Meteo（不可用时自动降级为本地模拟）",
     catApi = CatService.ConfigStatus(),
+    dogApi = DogService.ConfigStatus(),
     dependencies = "仅 Microsoft.AspNetCore.App 框架引用，零 NuGet 包"
 }));
 
@@ -165,6 +173,26 @@ app.MapGet("/api/cats/breeds/{id}", async (string id, CatService cats) =>
 app.MapGet("/api/cats/images/{id}", async (string id, CatService cats) =>
     await ApiWrap.RunAsync(async () => await cats.ImageAsync(id)));
 
+// ---------- 狗狗（dogapi.dog，免密钥） ----------
+// 静态路径先注册，避免 "breeds" 被 /{id} 参数路由吃掉。
+app.MapGet("/api/dogs/breeds", async (string? q, string? group, string? limit, string? hypo, DogService dogs) =>
+    await ApiWrap.RunAsync(async () => await dogs.BreedsAsync(q, group, limit, hypo)));
+
+app.MapGet("/api/dogs/groups", async (DogService dogs) =>
+    await ApiWrap.RunAsync(async () => await dogs.GroupsAsync()));
+
+app.MapGet("/api/dogs/random", async (string? breed, string? size, DogService dogs) =>
+    await ApiWrap.RunAsync(async () => await dogs.RandomAsync(breed, size)));
+
+app.MapGet("/api/dogs/image", async (string? breed, string? size, DogService dogs) =>
+    await ApiWrap.RunAsync(async () => await dogs.ImageAsync(breed, size)));
+
+app.MapGet("/api/dogs/facts", async (string? limit, DogService dogs) =>
+    await ApiWrap.RunAsync(async () => await dogs.FactsAsync(limit)));
+
+app.MapGet("/api/dogs/breeds/{id}", async (string id, DogService dogs) =>
+    await ApiWrap.RunAsync(async () => await dogs.BreedAsync(id)));
+
 // 内部端点：仅供 ServiceController 调用（控制器只转发 /api/*，此路径不对外暴露）
 // 延迟一小段时间再停机，确保本次响应能完整写回，Kestrel 会等在处理完在途请求后退出
 app.MapPost("/_internal/shutdown", () =>
@@ -204,6 +232,7 @@ app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
 {
     await ExchangeRateService.WarmupAsync();
     await CatService.WarmupAsync();   // 品种列表约 60+ 条，提前拉一次，页面下拉不必等
+    await DogService.WarmupAsync();   // 先读内置种子（毫秒级），1.8MB 索引在后台自行刷新
     try { await app.Services.GetRequiredService<WeatherService>().GetAsync("宁波"); } catch { /* 预热失败不影响服务 */ }
 }));
 

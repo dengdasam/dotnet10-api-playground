@@ -49,8 +49,13 @@ EPS = [
     ("/api/units/convert?category=currency&value=100&from=CNY&to=USD", None, "GET"),
     ("/api/cats/breeds?limit=20", None, "GET"),
     ("/api/cats/breeds/pers", None, "GET"),
+    ("/api/dogs/breeds?limit=20", None, "GET"),
+    ("/api/dogs/breeds?q=husky", None, "GET"),
+    ("/api/dogs/breeds/Shiba%20Inu", None, "GET"),
+    ("/api/dogs/groups", None, "GET"),
 ]
-# 注：/api/cats/random 会真实请求上游，故意不纳入压测循环，避免压测把上游打爆。
+# 注：/api/cats/random、/api/dogs/random、/api/dogs/image、/api/dogs/facts 会真实请求上游或 302 解析，
+#     故意不纳入压测循环，避免压测把上游打爆。
 
 
 def one(conn, path, body, method):

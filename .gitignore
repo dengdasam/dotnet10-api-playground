@@ -40,3 +40,5 @@ publish/
 preview-*.png
 _build_test.log
 _check_*.py
+# 犬种索引运行时缓存（bin/dist 内，双保险）
+.cache/

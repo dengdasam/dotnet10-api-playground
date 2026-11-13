@@ -186,18 +186,19 @@ details .result{margin-bottom:16px}
 <a href="#sec4"><span>04</span>时间与时区</a>
 <a href="#sec5"><span>05</span>单位换算与汇率</a>
 <a href="#sec6"><span>06</span>猫咪图片 TheCatAPI</a>
-<a href="#sec7"><span>07</span>响应契约与调用方式</a>
+<a href="#sec7"><span>07</span>狗狗犬种 dogapi.dog</a>
+<a href="#sec8"><span>08</span>响应契约与调用方式</a>
 </nav>
 <div class="side-rule"></div>
 <div class="side-block">
 <div class="k">概况</div>
-<div class="row"><span>已注册端点</span><b id="side-endpoints">16</b></div>
+<div class="row"><span>已注册端点</span><b id="side-endpoints">22</b></div>
 <div class="row"><span>运行时</span><b>.NET 10</b></div>
 <div class="row"><span>监听端口</span><b>5188</b></div>
 <div class="row"><span>第三方包</span><b>0</b></div>
 </div>
-<div class="side-status">统一响应包装 · 开放访问<br>天气断网时自动降级<br>猫图上游异常时回退缓存</div>
-<div class="side-foot">数据来源：Open-Meteo / TheCatAPI / 本地确定性模拟<br>密钥仅存本地 .env.local，不入库<br>零 NuGet 依赖 · 单文件静态页面</div>
+<div class="side-status">统一响应包装 · 开放访问<br>天气断网时自动降级<br>猫图上游异常时回退缓存<br>犬种索引走种子＋磁盘缓存</div>
+<div class="side-foot">数据来源：Open-Meteo / TheCatAPI / dogapi.dog / 本地确定性模拟<br>密钥仅存本地 .env.local，不入库<br>零 NuGet 依赖 · 单文件静态页面</div>
 </aside>
 
 <main class="content">
@@ -205,13 +206,13 @@ details .result{margin-bottom:16px}
 <header class="masthead">
 <div class="eyebrow">本地服务 · 交互式 API 文档</div>
 <h1>.NET 10 API 调试台</h1>
-<p class="meta">2026-11-13 &nbsp;·&nbsp; Minimal API &nbsp;·&nbsp; 16 个端点 &nbsp;·&nbsp; 零第三方依赖 &nbsp;·&nbsp; 端口 5188</p>
+<p class="meta">2026-11-13 &nbsp;·&nbsp; Minimal API &nbsp;·&nbsp; 22 个端点 &nbsp;·&nbsp; 零第三方依赖 &nbsp;·&nbsp; 端口 5188</p>
 </header>
 
-<div class="notice"><b>所有接口统一返回信封结构</b> <code>{ success, data, error, elapsedMs, timestamp }</code>，参数错误也以 HTTP 200 + <code>error</code> 字段表达。<br>天气优先读取 Open-Meteo 实时观测；上游不可用时自动降级为本地模拟数据，返回值中的 <code>source</code> 会标明 <code>live</code> 或 <code>fallback</code>。猫咪接口走 TheCatAPI，密钥只从本机环境变量或 <code>.env.local</code> 读取（不入库），未配置时自动使用公开匿名额度。</div>
+<div class="notice"><b>所有接口统一返回信封结构</b> <code>{ success, data, error, elapsedMs, timestamp }</code>，参数错误也以 HTTP 200 + <code>error</code> 字段表达。<br>天气优先读取 Open-Meteo 实时观测；上游不可用时自动降级为本地模拟数据，返回值中的 <code>source</code> 会标明 <code>live</code> 或 <code>fallback</code>。猫咪接口走 TheCatAPI，密钥只从本机环境变量或 <code>.env.local</code> 读取（不入库），未配置时自动使用公开匿名额度。狗狗接口走 dogapi.dog，<b>官方免密钥</b>；283 个犬种的索引以仓库内置种子打底、后台按需刷新，冷启动不必等上游 1.8 MB 响应。</div>
 
 <div class="stats">
-<div class="stat"><div class="n" id="stat-endpoints">16</div><div class="l">已注册端点</div></div>
+<div class="stat"><div class="n" id="stat-endpoints">22</div><div class="l">已注册端点</div></div>
 <div class="stat"><div class="n" id="stat-runtime">10.0</div><div class="l">运行时版本</div></div>
 <div class="stat"><div class="n" id="stat-weather">待查</div><div class="l">天气数据源</div></div>
 <div class="stat"><div class="n" id="stat-calls">0</div><div class="l">本次会话调用</div></div>
@@ -458,7 +459,84 @@ details .result{margin-bottom:16px}
 <pre class="result empty" id="res-catbreeds">点击上方按钮查看响应。</pre>
 </details>
 
-<div class="sec" id="sec7"><span class="num">07</span><h2>响应契约与调用方式</h2><span class="tag">统一包装</span></div>
+<div class="sec" id="sec7"><span class="num">07</span><h2>狗狗犬种 · dogapi.dog</h2><span class="tag">完全免密钥</span></div>
+
+<div class="item">
+<h3><span class="idx">12</span>随机犬图（附品种与署名） <span class="note">GET</span></h3>
+<span class="path">GET /api/dogs/random?breed=Pembroke+Welsh+Corgi&amp;size=medium</span>
+<div class="why">从本地犬种索引里随机挑一个带图的品种，返回中文名、分组、原产国、寿命、体重，以及四种尺寸的图片直链与 Wikimedia 署名信息。索引命中时是亚毫秒级，不产生上游请求；<code>breed</code> 留空即全库随机。</div>
+<div class="form-grid">
+<div class="field"><label for="dog-breed">品种（留空为不限）</label><select id="dog-breed"></select></div>
+<div class="field"><label for="dog-size">图片尺寸</label><select id="dog-size"><option value="thumb">thumb · 200×200</option><option value="medium" selected>medium · 长边 600</option><option value="large">large · 长边 1200</option><option value="full">full · 原图</option></select></div>
+</div>
+<div class="cmdrow"><span class="note">每次点击都换一张 · 图片由 images.dogapi.dog 直出</span><button type="button" onclick="run('dogs')">换一只</button><button type="button" onclick="copyCurl('dogs', this)">复制 cURL</button><button type="button" class="primary" onclick="run('dogs')">发送请求</button></div>
+<div class="cat-preview empty" id="dog-preview">尚未调用，发送请求后这里显示狗狗图片与署名。</div>
+<div class="res-head"><span class="pill" id="pill-dogs">尚未调用</span><span class="note" id="meta-dogs"></span></div>
+<pre class="result empty" id="res-dogs">点击「发送请求」查看响应。</pre>
+</div>
+
+<div class="item">
+<h3><span class="idx">13</span>犬种详情（UUID / 英文名 / 中文名均可） <span class="note">GET</span></h3>
+<span class="path">GET /api/dogs/breeds/Shiba+Inu</span>
+<div class="why">返回寿命、公母体重与肩高区间、低敏标记、被毛（类型/长度/颜色）、原产地与年代、11 项性格评分（1–5 分，运动量为分钟）、别名、认可机构与全部图片。名称不唯一时必须用完整英文名或 UUID。</div>
+<div class="form-grid">
+<div class="field"><label for="dog-breed-one">品种</label><select id="dog-breed-one"></select></div>
+</div>
+<div class="cmdrow"><span class="note">下拉由 /api/dogs/breeds 填充（283 个犬种）</span><button type="button" onclick="copyCurl('dogdetail', this)">复制 cURL</button><button type="button" class="primary" onclick="run('dogdetail')">发送请求</button></div>
+<div class="cat-preview empty" id="dogdetail-preview">尚未调用，发送请求后这里显示该犬种的前几张图。</div>
+<div class="res-head"><span class="pill" id="pill-dogdetail">尚未调用</span><span class="note" id="meta-dogdetail"></span></div>
+<pre class="result empty" id="res-dogdetail">点击「发送请求」查看响应。</pre>
+</div>
+
+<div class="item">
+<h3><span class="idx">14</span>解析上游 302 图片地址 <span class="note">GET</span></h3>
+<span class="path">GET /api/dogs/image?size=large</span>
+<div class="why">dogapi.dog 的 <code>/breeds/image</code> 与 <code>/breeds/{id}/image</code> 都是 302 重定向。这里关闭自动跟随，把 <code>Location</code> 头原样取回并包成 JSON，一次往返即可拿到可直接放进 <code>&lt;img src&gt;</code> 的地址，也便于观察重定向本身。</div>
+<div class="form-grid">
+<div class="field"><label for="dog-img-breed">品种（留空为随机）</label><select id="dog-img-breed"></select></div>
+<div class="field"><label for="dog-img-size">尺寸</label><select id="dog-img-size"><option value="thumb">thumb</option><option value="medium" selected>medium</option><option value="large">large</option><option value="full">full</option></select></div>
+</div>
+<div class="cmdrow"><span class="note">返回 httpStatus 与 imageUrl</span><button type="button" onclick="copyCurl('dogimage', this)">复制 cURL</button><button type="button" class="primary" onclick="run('dogimage')">发送请求</button></div>
+<div class="cat-preview empty" id="dogimg-preview">尚未调用，发送请求后这里显示解析到的图片。</div>
+<div class="res-head"><span class="pill" id="pill-dogimage">尚未调用</span><span class="note" id="meta-dogimage"></span></div>
+<pre class="result empty" id="res-dogimage">点击「发送请求」查看响应。</pre>
+</div>
+
+<div class="item">
+<h3><span class="idx">15</span>随机狗狗趣闻 <span class="note">GET</span></h3>
+<span class="path">GET /api/dogs/facts?limit=3</span>
+<div class="why">上游 <code>/facts</code> 标了 <code>Cache-Control: no-store</code>，所以这里不做任何缓存，每次点击都是新内容；<code>limit</code> 取 1~5，超出会返回明确的参数错误而不是静默截断。</div>
+<div class="form-grid">
+<div class="field"><label for="dog-fact-limit">条数（1~5）</label><input id="dog-fact-limit" value="3" spellcheck="false"></div>
+</div>
+<div class="cmdrow"><span class="note">不做缓存，连点连新</span><button type="button" onclick="copyCurl('dogfacts', this)">复制 cURL</button><button type="button" class="primary" onclick="run('dogfacts')">发送请求</button></div>
+<div class="res-head"><span class="pill" id="pill-dogfacts">尚未调用</span><span class="note" id="meta-dogfacts"></span></div>
+<pre class="result empty" id="res-dogfacts">点击「发送请求」查看响应。</pre>
+</div>
+
+<details>
+<summary>犬种列表、分组统计、缓存策略与数据许可</summary>
+<ul>
+<li><b>免密钥</b>：dogapi.dog 官方写明「No key, no sign up」，因此这套接口没有任何密钥配置项，<code>/api/health</code> 里的 <code>dogApi</code> 只报索引状态。</li>
+<li><b>索引三层</b>：内存索引（命中即微秒级）→ 仓库种子 <code>Data/dog-breeds.json</code>（约 660 KB，首启与断网都能用）→ 运行时缓存 <code>.cache/dog-breeds-v2.json</code>（后台刷新成功后落盘，7 天内优先于种子）。上游全量响应 1.84 MB、国内实测单次 15~40 秒，所以冷启动<b>不等上游</b>，先出种子再后台换新。</li>
+<li><b>单航班刷新</b>：后台刷新用 Interlocked 标志合并，多个并发请求不会同时去拉 1.8 MB；刷新失败就继续用旧索引，响应里的 <code>source</code> 会分别是 <code>live</code> / <code>cache</code> / <code>seed</code>。</li>
+<li><b>图片许可</b>：图片来自 Wikimedia Commons，响应里的 <code>attribution</code>（author / license / licenseUrl / sourceUrl）是许可要求的一部分，页面预览已把作者与许可显示在图注里，二次使用时请保留。</li>
+<li><b>分组</b>：AKC 9 个分组由索引聚合得出，不额外请求上游；分组 UUID 不可构造，服务端内置了映射表。</li>
+</ul>
+<div class="form-grid">
+<div class="field"><label for="dog-q">名称 / 中文名 / 别名 / 原产国 关键字</label><input id="dog-q" placeholder="如：corgi / 柯基 / Japan / 牧羊" spellcheck="false"></div>
+<div class="field"><label for="dog-list-limit">返回条数（0 = 全部 283）</label><input id="dog-list-limit" value="20" spellcheck="false"></div>
+<div class="field full"><label class="pick"><input type="checkbox" id="dog-hypo"> 只看低敏品种（hypoallergenic）</label></div>
+</div>
+<button type="button" onclick="run('doglist')">查看 /api/dogs/breeds 原始响应</button>
+<div class="res-head"><span class="pill" id="pill-doglist">尚未调用</span><span class="note" id="meta-doglist"></span></div>
+<pre class="result empty" id="res-doglist">点击上方按钮查看响应。</pre>
+<button type="button" onclick="run('doggroups')">查看 /api/dogs/groups 分组统计</button>
+<div class="res-head"><span class="pill" id="pill-doggroups">尚未调用</span><span class="note" id="meta-doggroups"></span></div>
+<pre class="result empty" id="res-doggroups">点击上方按钮查看响应。</pre>
+</details>
+
+<div class="sec" id="sec8"><span class="num">08</span><h2>响应契约与调用方式</h2><span class="tag">统一包装</span></div>
 
 <pre>{
   "success": true,
@@ -498,7 +576,16 @@ curl 'http://127.0.0.1:5188/api/units/convert?category=currency&amp;from=cny&amp
 curl 'http://127.0.0.1:5188/api/cats/random?limit=2&amp;breed=pers&amp;hasBreeds=1'
 
 # 品种详情
-curl 'http://127.0.0.1:5188/api/cats/breeds/pers'</pre>
+curl 'http://127.0.0.1:5188/api/cats/breeds/pers'
+
+# 随机犬图（指定柯基，中图）
+curl 'http://127.0.0.1:5188/api/dogs/random?breed=Pembroke+Welsh+Corgi&size=medium'
+
+# 犬种详情（中文名/英文名/UUID 都可以）
+curl 'http://127.0.0.1:5188/api/dogs/breeds/柴犬'
+
+# 解析上游 302 图片地址
+curl 'http://127.0.0.1:5188/api/dogs/image?size=large'</pre>
 
 <details>
 <summary>错误码一览（均以 success=false 返回）</summary>
@@ -510,12 +597,13 @@ curl 'http://127.0.0.1:5188/api/cats/breeds/pers'</pre>
 <li><code>INVALID_JSON</code>：POST 请求体不是合法 JSON；<code>INTERNAL_ERROR</code>：未预期的服务端异常。</li>
 <li><code>INVALID_LIMIT</code> / <code>INVALID_SIZE</code> / <code>INVALID_BREED</code> / <code>MISSING_BREED</code> / <code>INVALID_IMAGE_ID</code> / <code>MISSING_IMAGE_ID</code>：猫咪接口入参问题。</li>
 <li><code>CAT_API_KEY_INVALID</code> / <code>CAT_API_RATE_LIMIT</code>：密钥被拒（401）或触发限流（429）；<code>CAT_UPSTREAM_UNAVAILABLE</code>：上游不可用且无缓存；<code>CAT_NO_IMAGE</code> / <code>CAT_BREED_NOT_FOUND</code> / <code>CAT_IMAGE_NOT_FOUND</code>：查询无结果。</li>
+<li><code>DOG_BREED_NOT_FOUND</code> / <code>DOG_IMAGE_NOT_FOUND</code> / <code>DOG_NO_IMAGE</code> / <code>DOG_NO_FACT</code>：狗狗查询无结果（名称不唯一时请改用完整英文名或 UUID）；<code>DOG_UPSTREAM_TIMEOUT</code> / <code>DOG_UPSTREAM_UNAVAILABLE</code> / <code>DOG_UPSTREAM_ERROR</code> / <code>DOG_RATE_LIMIT</code>：上游不可用或被限流；<code>DOG_IMAGE_UNRESOLVED</code>：上游未返回 Location 头。</li>
 </ul>
 </details>
 
-<div class="callout"><b>注意</b>：本服务面向本地演示，开放访问、未做鉴权与限流。天气上游为公开免 Key 服务，断网时返回的是模拟数据，不可用于生产决策；猫咪接口的密钥只存本地，响应里不会回传。若需部署到公网，请补充鉴权、超时与限流策略，并改用服务端密钥注入而非本地文件。</div>
+<div class="callout"><b>注意</b>：本服务面向本地演示，开放访问、未做鉴权与限流。天气上游为公开免 Key 服务，断网时返回的是模拟数据，不可用于生产决策；猫咪接口的密钥只存本地，响应里不会回传；狗狗图片来自 Wikimedia Commons，请按响应里的 <code>attribution</code> 保留署名。若需部署到公网，请补充鉴权、超时与限流策略，并改用服务端密钥注入而非本地文件。</div>
 
-<div class="foot">.NET 10 Minimal API · 仅 Microsoft.AspNetCore.App 框架引用，零 NuGet 包 · 页面为单文件 HTML / CSS / JS，无外部资源（猫图除外）。<br>启动：<code>dotnet run --project ApiPlayground</code> 或双击 <code>start.cmd</code>；监听地址可用环境变量 <code>API_URL</code> 或 <code>--urls</code> 覆盖；TheCatAPI 密钥用 <code>THECATAPI_KEY</code> 或 <code>.env.local</code> 配置。</div>
+<div class="foot">.NET 10 Minimal API · 仅 Microsoft.AspNetCore.App 框架引用，零 NuGet 包 · 页面为单文件 HTML / CSS / JS，无外部资源（猫图、狗图除外）。<br>启动：<code>dotnet run --project ApiPlayground</code> 或双击 <code>start.cmd</code>；监听地址可用环境变量 <code>API_URL</code> 或 <code>--urls</code> 覆盖；TheCatAPI 密钥用 <code>THECATAPI_KEY</code> 或 <code>.env.local</code> 配置，dogapi.dog 无需任何密钥。</div>
 
 </main>
 </div>
@@ -590,7 +678,23 @@ var SPECS = {
               return '/api/cats/random?' + p.join('&'); } },
   catimage:  { method:'GET', path:function(){ return '/api/cats/images/' + encodeURIComponent(val('cat-img-id')); } },
   catbreed:  { method:'GET', path:function(){ return '/api/cats/breeds/' + encodeURIComponent(val('cat-breed-one') || 'pers'); } },
-  catbreeds: { method:'GET', path:function(){ return '/api/cats/breeds?' + [q('q', val('cat-q')), q('limit', val('cat-list-limit') || '0')].join('&'); } }
+  catbreeds: { method:'GET', path:function(){ return '/api/cats/breeds?' + [q('q', val('cat-q')), q('limit', val('cat-list-limit') || '0')].join('&'); } },
+  dogall:   { method:'GET', path:function(){ return '/api/dogs/breeds'; } },
+  dogs:     { method:'GET', path:function(){
+              var p = [q('size', val('dog-size') || 'medium')];
+              var b = val('dog-breed'); if (b) p.push(q('breed', b));
+              return '/api/dogs/random?' + p.join('&'); } },
+  dogdetail:{ method:'GET', path:function(){ return '/api/dogs/breeds/' + encodeURIComponent(val('dog-breed-one') || 'Shiba Inu'); } },
+  dogimage: { method:'GET', path:function(){
+              var p = [q('size', val('dog-img-size') || 'medium')];
+              var b = val('dog-img-breed'); if (b) p.push(q('breed', b));
+              return '/api/dogs/image?' + p.join('&'); } },
+  dogfacts: { method:'GET', path:function(){ return '/api/dogs/facts?' + q('limit', val('dog-fact-limit') || '3'); } },
+  doglist:  { method:'GET', path:function(){
+              var p = [q('limit', val('dog-list-limit') || '20'), q('q', val('dog-q'))];
+              if ($('dog-hypo') && $('dog-hypo').checked) p.push(q('hypo', '1'));
+              return '/api/dogs/breeds?' + p.join('&'); } },
+  doggroups:{ method:'GET', path:function(){ return '/api/dogs/groups'; } }
 };
 
 var calls = 0;
@@ -717,6 +821,22 @@ function summarize(name, d){
         + ((d.items || []).slice(0, 3).map(function(b){ return b.nameZh || b.name; }).join(' / ') || '无匹配')
         + (d.cached ? ' · 命中缓存' : ' · 实时');
       case 'catall':    return '品种表 ' + d.total + ' 个，已用于填充页面下拉';
+      case 'dogs':      return fmt(d.breed && d.breed.label) + ' · ' + fmt(d.breed && d.breed.group)
+        + ' · ' + fmt(d.breed && d.breed.origin) + ' · 寿命 ' + fmt(d.breed && d.breed.lifeYears) + ' 年'
+        + ' · ' + fmt(d.image && d.image.size) + ' 图'
+        + (d.image && d.image.attribution && d.image.attribution.license ? ' · ' + d.image.attribution.license : '');
+      case 'dogdetail': return fmt(d.label) + ' · ' + fmt(d.group && (d.group.nameZh || d.group.name))
+        + ' · ' + fmt(d.origin && (d.origin.countryZh || d.origin.country))
+        + ' · 寿命 ' + fmt(d.lifeYears) + ' 年 · 体重 ' + fmt(d.weightKg && d.weightKg.male) + ' kg'
+        + ' · 肩高 ' + fmt(d.heightCm && d.heightCm.male) + ' cm' + (d.hypoallergenic ? ' · 低敏' : '');
+      case 'dogimage':  return fmt(d.breed) + ' · ' + fmt(d.size) + ' · 上游 HTTP ' + fmt(d.httpStatus)
+        + ' → ' + String(fmt(d.imageUrl)).slice(-26);
+      case 'dogfacts':  return d.count + ' 条趣闻 · ' + String(fmt(d.facts && d.facts[0] && d.facts[0].body)).slice(0, 64);
+      case 'doglist':   return '共 ' + d.total + ' 个犬种 · 匹配 ' + d.matched + ' · 本次返回 ' + d.returned
+        + ' · ' + ((d.items && d.items[0]) ? d.items[0].label : '无匹配') + (d.cached ? ' · ' + fmt(d.source) : ' · 实时索引');
+      case 'doggroups': return d.total + ' 个分组 · 共 ' + d.breedTotal + ' 个犬种 · 最大组 '
+        + fmt(d.items[0] && d.items[0].nameZh) + ' ' + fmt(d.items[0] && d.items[0].breedCount) + ' 个';
+      case 'dogall':    return '犬种索引 ' + d.total + ' 个 · ' + fmt(d.source) + ' · 已用于填充页面下拉';
       default:        return '已返回结果数据';
     }
   } catch (e) { return '已返回结果数据'; }
@@ -744,6 +864,43 @@ function renderCatPreview(name, json){
     var cap = document.createElement('figcaption');
     cap.textContent = (im.breedLabel || '未标注品种') + ' · ' + (im.id || '—') + ' · '
       + fmt(im.width) + '×' + fmt(im.height);
+    fig.appendChild(img); fig.appendChild(cap); box.appendChild(fig);
+  });
+}
+
+/* 狗狗预览：三个卡片共用，图注保留作者与许可（Wikimedia 的署名要求） */
+function renderDogPreview(name, json){
+  var box = $(name === 'dogs' ? 'dog-preview' : (name === 'dogimage' ? 'dogimg-preview' : 'dogdetail-preview'));
+  if (!box) return;
+  var d = json && json.success === true ? json.data : null;
+  var items = [];
+  if (d) {
+    if (d.image) {
+      var a = d.image.attribution || {};
+      items = [{ url: d.image.url, label: fmt(d.breed && d.breed.label), credit: [a.author, a.license].filter(Boolean).join(' · ') }];
+    } else if (d.imageUrl) {
+      items = [{ url: d.imageUrl, label: fmt(d.breed), credit: '上游 302 解析 · ' + fmt(d.size) }];
+    } else if (d.images && d.images.length) {
+      items = d.images.slice(0, 6).map(function(i){
+        var at = i.attribution || {};
+        return { url: i.medium || i.url, label: fmt(d.label), credit: [at.author, at.license].filter(Boolean).join(' · ') };
+      });
+    }
+  }
+  if (!items.length) {
+    box.className = 'cat-preview empty';
+    box.textContent = d ? '本次没有可预览的图片。' : '暂无图片可预览，发送请求后这里显示狗狗图片。';
+    return;
+  }
+  box.className = 'cat-preview';
+  box.innerHTML = '';
+  items.forEach(function(it){
+    var fig = document.createElement('figure'); fig.className = 'cat-fig';
+    var img = document.createElement('img');
+    img.alt = it.label; img.src = it.url; img.loading = 'lazy';
+    img.addEventListener('error', function(){ fig.classList.add('img-fail'); img.style.display = 'none'; });
+    var cap = document.createElement('figcaption');
+    cap.textContent = it.label + ' · ' + (it.credit || '来源未标注');
     fig.appendChild(img); fig.appendChild(cap); box.appendChild(fig);
   });
 }
@@ -825,6 +982,7 @@ async function run(name, silent){
       }
       renderFinal(name, json);
       if (name === 'cats' || name === 'catimage') renderCatPreview(name, json);
+      if (name === 'dogs' || name === 'dogimage' || name === 'dogdetail') renderDogPreview(name, json);
     }
     return json;
   } catch (e) {
@@ -836,6 +994,7 @@ async function run(name, silent){
         + '\n请确认服务正在运行，且监听端口为 5188。';
       renderFinal(name, null, (e && e.message) ? e.message : String(e));
       if (name === 'cats' || name === 'catimage') renderCatPreview(name, null);
+      if (name === 'dogs' || name === 'dogimage' || name === 'dogdetail') renderDogPreview(name, null);
     }
     return null;
   }
@@ -910,7 +1069,7 @@ function setExpr(s){
 async function initData(){
   var results = await Promise.all([
     run('cities', true), run('tzones', true), run('ucats', true),
-    run('index', true), run('health', true), run('catall', true)
+    run('index', true), run('health', true), run('catall', true), run('dogall', true)
   ]);
   var pick = function(r){ return r && r.success && r.data ? r.data : []; };
   window.__cities = pick(results[0]);
@@ -940,6 +1099,14 @@ async function initData(){
   });
   fillSelect('cat-breed', [{ value:'', label:'不限品种（随机）' }].concat(breedOpts), 'value', 'label', '');
   fillSelect('cat-breed-one', breedOpts, 'value', 'label', 'pers');
+
+  var dogList = results[6] && results[6].success && results[6].data ? results[6].data : { total:0, items:[] };
+  window.__dogs = dogList.items || [];
+  var dogOpts = window.__dogs.map(function(b){ return { value:b.id, label:b.label }; });
+  fillSelect('dog-breed', [{ value:'', label:'不限品种（随机）' }].concat(dogOpts), 'value', 'label', '');
+  fillSelect('dog-img-breed', [{ value:'', label:'随机犬种' }].concat(dogOpts), 'value', 'label', '');
+  var shiba = window.__dogs.find(function(b){ return b.name === 'Shiba Inu'; });
+  fillSelect('dog-breed-one', dogOpts, 'value', 'label', shiba ? shiba.id : (dogOpts[0] && dogOpts[0].value));
 
   var tb = $('ep-table');
   tb.innerHTML = '';

@@ -132,7 +132,7 @@ dotnet run --project ServiceController
 
 换句话说：**窗口就是应用本体，开窗即启动、关窗即全停，不需要也不会有后台服务常驻。**
 
-## 接口清单（15 组 / 16 个端点）
+## 接口清单（21 组 / 22 个端点）
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -151,6 +151,12 @@ dotnet run --project ServiceController
 | GET | `/api/cats/breeds?q=&limit=` | 品种列表（107 个，关键字过滤，缓存 30 分钟） |
 | GET | `/api/cats/breeds/{id}` | 按 4 字母 ID 查品种详情（含中文名） |
 | GET | `/api/cats/images/{id}` | 按图片 ID 查图，命中本地缓存则不请求上游 |
+| GET | `/api/dogs/breeds?q=&group=&limit=&hypo=` | 犬种列表（283 个，关键字/分组/低敏过滤） |
+| GET | `/api/dogs/breeds/{id}` | 犬种详情（UUID / 英文名 / 中文名均可，含 11 项性格评分） |
+| GET | `/api/dogs/random?breed=&size=` | 随机犬图，附品种信息与 Wikimedia 署名 |
+| GET | `/api/dogs/image?breed=&size=` | 解析上游 302 图片地址（不自动跟随重定向） |
+| GET | `/api/dogs/facts?limit=1..5` | 随机趣闻，上游 no-store，每次不同 |
+| GET | `/api/dogs/groups` | 犬种分组统计（AKC 9 组，由索引聚合） |
 
 ### 响应契约
 
@@ -189,6 +195,10 @@ curl 'http://127.0.0.1:5188/api/cats/random?limit=2&breed=pers&hasBreeds=1'
 
 # 品种详情
 curl 'http://127.0.0.1:5188/api/cats/breeds/pers'
+
+# 随机犬图（指定柯基）与犬种详情
+curl 'http://127.0.0.1:5188/api/dogs/random?breed=Pembroke+Welsh+Corgi&size=medium'
+curl 'http://127.0.0.1:5188/api/dogs/breeds/柴犬'
 ```
 
 ### TheCatAPI 密钥配置
@@ -213,6 +223,7 @@ cp .env.example .env.local
 - **时间**：使用 IANA 时区标识，Windows 环境查不到时自动回退到对应 Windows 时区 ID。不带偏移的时间按源时区解释，带 `Z` 或 `±HH:mm` 的按绝对偏移解析。
 - **单位换算**：9 类 77 个单位，线性单位以基准单位为中转（`value × fromFactor ÷ toFactor`）；温度以开尔文为中转处理非线性偏移；数据存储同时提供十进制 KB 与二进制 KiB 两套。
 - **汇率换算**：新增第 9 类 `currency`，14 种常用货币。数据源为 open.er-api.com 公开免 Key 接口（每日更新、以 USD 为基准），交叉汇率 `Rates[to] / Rates[from]`，成功结果内存缓存 30 分钟；上游失败/超时降级为 2026-11-12 的内置快照，连续失败 2 分钟内抑制重试。响应返回 `baseRate`、`reverseRate`、`rateExpression`、`source`、`provider`、`rateUpdatedAt` 与换算公式。汇率为参考值，非逐笔实时报价。
+- **狗狗犬种（dogapi.dog）**：上游完全免密钥（官方声明 "No key, no sign up"）。全量犬种索引 1.84 MB、国内实测单次 15~40 秒，因此采用「内存索引 → 仓库种子 Data/dog-breeds.json → 7 天磁盘缓存 .cache/」三层结构：冷启动读种子（毫秒级）立即可用，后台以单航班（Interlocked 标志）刷新上游并落盘；响应 `source` 标明 `live` / `cache` / `seed`。详情支持 UUID、英文名、中文名与别名查询，附 11 项 1–5 分性格评分（运动量为分钟）。图片来自 Wikimedia Commons，响应携带 `attribution`（作者/许可/来源页），页面预览把署名渲染进图注。302 图片端点关闭自动跟随、原样返回 `Location`，方便观察重定向本身。
 - **猫咪图片（TheCatAPI）**：`/api/cats/*` 四个端点封装 `images/search`、`images/{id}`、`breeds`。密钥只从环境变量 / `.env.local` 注入，页面与 URL 都拿不到。品种列表 30 分钟缓存 + 单航班，最近 20 张成功图片留作上游故障兜底（`stale=true`）；连接超时 2 秒、总超时 6 秒；401/429 分别映射为 `CAT_API_KEY_INVALID` / `CAT_API_RATE_LIMIT`。常见品种附中文名（如 `pers` → 波斯猫），上游图片 CDN 直出，页面预览失败时自动给文字提示。
 - **页面**：单文件 `wwwroot/index.html`，左侧 238px sticky 目录（章节锚点 + 滚动高亮）、右侧内容区；冷调低饱和、纯白卡片、深靛主色 `#3B5A6A`、细边框、无渐变无阴影，含回到顶部、窄屏横向导航、打印隐藏侧栏。响应以中性配色高亮，附服务端 / 客户端耗时与调用计数。
 - **每个请求各自的最终结果**：每个接口卡片在原始 JSON 上方都有一块醒目的结论区，调用后显示人类可读的最终结果，如「宁波（浙江）22.2℃ · 阴 · 实时数据」「1+2*(3-4)/5 = 0.6」「100 CNY = 14.957 USD · …」；失败时显示中文错误提示。原始 JSON 仍完整保留在下方供对照，页面初始化时的辅助数据拉取不产生结论。
@@ -232,6 +243,11 @@ cp .env.example .env.local
 | `GET /api/cats/breeds?limit=20`（代理，品种缓存命中） | — | **0.57 ms** |
 | `GET /api/cats/breeds/pers`（代理） | — | **0.53 ms** |
 | `GET /api/cats/random`（真实上游往返） | — | **约 320 ms**，不计入压测循环 |
+| `GET /api/dogs/breeds?limit=20`（索引命中） | — | **0.40 ms** |
+| `GET /api/dogs/breeds?q=husky`（关键字过滤） | — | **0.56 ms** |
+| `GET /api/dogs/breeds/Shiba Inu`（详情） | — | **0.40 ms** |
+| `GET /api/dogs/random`（索引随机取图，0 上游请求） | — | **< 0.1 ms** |
+| `GET /api/dogs/image`（真实 302 往返） | — | **约 1.8 s**，不计入压测循环 |
 | 页面首屏 FCP / 数据就绪 | 264 / 322 ms | 264 / 322 ms（本就没问题，未动） |
 | 并发 20 × 20 次 `/api/health` | — | **4573 req/s**，p50 3.0 ms，0 错误（经代理） |
 
@@ -266,6 +282,7 @@ python bench.py http://127.0.0.1:5188 400 --concurrency 20   # 附带并发吞�
 ├── ApiPlayground/                    # 主服务（内部 5180）
 │   ├── ApiPlayground.csproj          # 仅 framework reference
 │   ├── Program.cs                    # Minimal API 端点注册 + /_internal/shutdown
+├── Data/                         # 犬种索引种子（dogapi.dog 全量快照，离线可用）
 │   ├── ApiEnvelope.cs                # 统一响应信封 + 异常包装
 │   ├── Services/
 │   │   ├── ExpressionEvaluator.cs    # 递归下降表达式解析
@@ -274,6 +291,7 @@ python bench.py http://127.0.0.1:5188 400 --concurrency 20   # 附带并发吞�
 │   │   ├── UnitConverter.cs          # 9 类单位换算（含 currency 类别）
 │   │   ├── ExchangeRateService.cs    # 公开汇率接口 + 内置快照兜底
 │   │   ├── CatService.cs             # TheCatAPI（密钥注入、品种缓存、图片兜底）
+│   │   ├── DogService.cs             # dogapi.dog（免密钥；种子+磁盘缓存+后台单航班刷新）
 │   │   └── NumberFormat.cs           # 浮点显示格式化
 │   ├── wwwroot/index.html            # 单文件调试页面（含启动/停止控制区）
 │   └── README.md
@@ -293,4 +311,4 @@ python bench.py http://127.0.0.1:5188 400 --concurrency 20   # 附带并发吞�
 
 ## 限制
 
-面向本地演示，开放访问、无鉴权无限流；天气降级数据是模拟值，不可用于生产决策。猫咪接口的密钥只存本机，页面与响应都不回传，但上游图片走外部 CDN，预览依赖浏览器外网连通性。若部署到公网，需补充鉴权、限流与超时策略。控制台窗口就是应用本体：窗口在则服务在，关窗口全部停止，不会留下后台常驻进程；`/control/*` 仅绑定 `127.0.0.1` 且未做鉴权，不要把它暴露到公网或不可信网络。
+面向本地演示，开放访问、无鉴权无限流；天气降级数据是模拟值，不可用于生产决策。猫咪接口的密钥只存本机，页面与响应都不回传，但上游图片走外部 CDN，预览依赖浏览器外网连通性。狗狗接口无需密钥，图片来自 Wikimedia Commons，二次使用请保留响应里的 attribution 署名。若部署到公网，需补充鉴权、限流与超时策略。控制台窗口就是应用本体：窗口在则服务在，关窗口全部停止，不会留下后台常驻进程；`/control/*` 仅绑定 `127.0.0.1` 且未做鉴权，不要把它暴露到公网或不可信网络。

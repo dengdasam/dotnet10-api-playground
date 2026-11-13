@@ -8,4 +8,9 @@
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- 犬种索引种子：首启/断网时直接可用，不必每次等 dogapi.dog 的 1.8MB 全量响应 -->
+    <Content Update="Data\**\*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

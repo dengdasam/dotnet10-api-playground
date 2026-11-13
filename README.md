@@ -15,7 +15,7 @@
                                                   ▼
                                    ┌──────────────────────────────┐
                                    │  ApiPlayground  :5180        │
-                                   │  Minimal API · 16 个端点      │
+                                   │  Minimal API · 22 个端点      │
                                    └──────────────────────────────┘
 ```
 
@@ -60,8 +60,14 @@
 | GET | `/api/cats/breeds?q=siamese&limit=20` | TheCatAPI 品种列表（107 个，缓存 30 分钟） |
 | GET | `/api/cats/breeds/pers` | 按 4 字母 ID 查品种详情 |
 | GET | `/api/cats/images/{id}` | 按图片 ID 查图（命中本地缓存则不请求上游） |
+| GET | `/api/dogs/breeds?q=husky&limit=20` | 犬种列表（283 个，关键字/分组/低敏过滤） |
+| GET | `/api/dogs/breeds/柴犬` | 犬种详情（UUID / 英文名 / 中文名均可） |
+| GET | `/api/dogs/random?breed=Pembroke+Welsh+Corgi&size=medium` | 随机犬图，附品种信息与图片署名 |
+| GET | `/api/dogs/image?size=large` | 解析上游 302 图片地址 |
+| GET | `/api/dogs/facts?limit=3` | 随机趣闻（上游 no-store，每次不同） |
+| GET | `/api/dogs/groups` | 犬种分组统计（AKC 9 组） |
 
-汇率走 <https://open.er-api.com> 公开接口（免 Key），以 USD 交叉换算；上游不可用时回落到内置快照，响应里 `provider` / `note` 会标明来源。
+汇率走 <https://open.er-api.com> 公开接口（免 Key），以 USD 交叉换算；上游不可用时回落到内置快照，响应里 `provider` / `note` 会标明来源。狗狗接口走 <https://dogapi.dog>（官方免密钥）：283 个犬种的索引以仓库内置种子打底、后台按需刷新，冷启动不必等上游 1.84 MB 响应；图片来自 Wikimedia Commons，请保留 `attribution` 署名。
 
 ### 配置 TheCatAPI 密钥
 
@@ -108,6 +114,7 @@ cp .env.example .env.local
 - **天气三级缓存**：按城市缓存 3 分钟 + 单航班（并发同一城市只打一次上游）+ 失败回退旧缓存，响应带 `cached` / `cacheAgeSeconds`。
 - **汇率单航班 + 启动预热**：服务就绪即在后台拉一次汇率，首次换算不再等 1.3 秒。
 - **猫咪接口**：品种列表 30 分钟缓存 + 单航班；最近 20 张图留作上游故障兜底（标 `stale`）；连接超时 2 秒、总超时 6 秒；密钥只从本机环境变量 / `.env.local` 读取。
+- **狗狗接口**：dogapi.dog 官方免密钥。上游全量索引 1.84 MB、国内实测 15~40 秒，采用「内存索引 → 内置种子 → 7 天磁盘缓存」三层结构，冷启动毫秒级可用，后台单航班刷新；图片端点原样解析 302 的 `Location`。
 - **单实例保护**：控制器与主服务各按端口加命名互斥体，重复双击只会打开页面，不会崩，也不会两个后端分走请求。
 - **父子联动**：主服务通过 `API_PARENT_PID` 反向监视控制器，控制器被强杀也会自行退出。
 - **反代正确处理 body**：转发前先读成字节数组，避免 POST 丢包。
@@ -122,7 +129,8 @@ cp .env.example .env.local
 │   ├── Program.cs                # 端点注册、日志、单实例、父进程守护
 │   ├── ApiEnvelope.cs            # 统一响应信封
 │   ├── Services/                 # 天气 / 汇率 / 时间 / 单位 / 表达式 / 猫图 / 数字格式
-│   │   └── CatService.cs         # TheCatAPI 封装（密钥注入、缓存、降级）
+│   │   ├── CatService.cs         # TheCatAPI 封装（密钥注入、缓存、降级）
+│   │   └── DogService.cs         # dogapi.dog 封装（免密钥；种子+磁盘缓存+单航班刷新）
 │   ├── wwwroot/index.html        # 调试页（双栏文档站，单文件零依赖）
 │   └── README.md                 # 主服务详细文档（接口、缓存、性能）
 ├── ServiceController/            # 控制器（:5188，页面 + 反代 + 进程管理）
