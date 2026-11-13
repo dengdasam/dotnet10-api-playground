@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.Json;
 
@@ -11,8 +12,10 @@ namespace ApiPlayground.Services;
 ///   2. 仓库根目录的 .env.local（已被 .gitignore 排除，绝不入库）
 /// 两者都没有时仍可走官方公开匿名额度，响应里的 authenticated=false 会明确标注。
 ///
-/// 性能与健壮性：品种列表缓存 30 分钟（单航班），图片结果保留最近 20 张，
-/// 上游失败时返回旧结果并标记 stale；连接超时 2 秒、总超时 6 秒，不会让调用方干等。
+/// 性能与健壮性：品种列表缓存 30 分钟（单航班），图片搜索按查询 URL 共享单次上游往返（单航班），
+/// 图片结果保留最近 20 张；任一端点上游失败（含 429 限流）后进入 30 秒负缓存：有旧数据返回
+/// 旧结果并标记 stale，没有旧数据则快速失败——绝不逐条干等、也不反复打上游。
+/// 连接超时 2 秒、总超时 6 秒。
 /// </summary>
 public sealed class CatService
 {
@@ -33,7 +36,22 @@ public sealed class CatService
     private static volatile BreedEntry[]? _breeds;
     private static DateTimeOffset _breedsAt = DateTimeOffset.MinValue;
     private static volatile CatImage[] _recent = [];
+
+    // ---------- 上游故障负缓存（所有猫咪端点共享） ----------
+    // 上游一旦失败：30 秒内所有猫端点直接复用失败结论，不再逐条重试打上游。
     private static DateTimeOffset _lastFailure = DateTimeOffset.MinValue;
+    private static string _failureNote = "连接失败";
+    private static bool InFailureCooldown => DateTimeOffset.UtcNow - _lastFailure < FailureCooldown;
+    private static void NoteFailure(string note)
+    {
+        _failureNote = note;
+        _lastFailure = DateTimeOffset.UtcNow;
+    }
+    private static ApiException FastFail() => new("CAT_UPSTREAM_UNAVAILABLE",
+        $"TheCatAPI 近期不可用（{_failureNote}），{FailureCooldown.TotalSeconds:0} 秒内跳过重试直接返回本错误；请稍后再试");
+
+    // 图片搜索的单航班：相同查询的并发请求共享同一次上游往返，失败也只探测一次
+    private static readonly ConcurrentDictionary<string, Lazy<Task<CatImage[]>>> SearchFlights = new();
 
     private sealed record KeyInfo(string? Value, string Source);
     private sealed record BreedEntry(
@@ -93,30 +111,26 @@ public sealed class CatService
         if (sizeValue is not null) parts.Add("size=" + sizeValue);
         var url = "/images/search?" + string.Join("&", parts);
 
-        // 上游近期失败且手里有旧图：直接返回旧结果，避免每个请求都白等一个超时
-        if (DateTimeOffset.UtcNow - _lastFailure < FailureCooldown && _recent.Length > 0)
-            return ShapeImages(TakeRecent(limit), "cache", stale: true, note: "上游近期不可用，返回最近一次成功获取的猫图");
+        // 负缓存命中：近期上游失败时直接回旧图或快速失败，不再逐条干等
+        if (InFailureCooldown)
+        {
+            if (_recent.Length > 0)
+                return ShapeImages(TakeRecent(limit), "cache", stale: true, note: "上游近期不可用，返回最近一次成功获取的猫图");
+            throw FastFail();
+        }
 
         try
         {
-            using var doc = await GetJsonAsync(url);
-            var images = ParseImages(doc.RootElement);
-            if (images.Length == 0)
-                throw new ApiException("CAT_NO_IMAGE", "上游未返回图片，可尝试去掉品种筛选或放宽条件");
-
-            // 只保留最近 20 张，作为上游故障时的兜底
-            var merged = images.Concat(_recent).GroupBy(i => i.Id).Select(g => g.First()).Take(20).ToArray();
-            _recent = merged;
+            var images = await SearchOnceAsync(url);
             return ShapeImages(images, "live", stale: false, note: "来自 TheCatAPI 实时接口");
         }
         catch (ApiException) { throw; }
-        catch
+        catch (Exception ex)
         {
-            _lastFailure = DateTimeOffset.UtcNow;
+            NoteFailure(ex.Message);
             if (_recent.Length > 0)
                 return ShapeImages(TakeRecent(limit), "cache", stale: true, note: "上游不可用，已返回最近一次成功获取的猫图");
-            throw new ApiException("CAT_UPSTREAM_UNAVAILABLE",
-                "无法连接 TheCatAPI（超时或响应异常），且本地暂无可用缓存；请检查网络后重试");
+            throw FastFail();
         }
     }
 
@@ -134,6 +148,10 @@ public sealed class CatService
         if (hit is not null)
             return ShapeImage(hit, "cache", note: "命中本地最近结果缓存，未请求上游");
 
+        // 负缓存命中：上游近期失败，快速失败不干等
+        if (InFailureCooldown)
+            throw FastFail();
+
         try
         {
             using var doc = await GetJsonAsync("/images/" + Uri.EscapeDataString(key));
@@ -144,9 +162,9 @@ public sealed class CatService
             return ShapeImage(images[0], "live", note: "来自 TheCatAPI /v1/images/{id}");
         }
         catch (ApiException) { throw; }
-        catch
+        catch (Exception ex)
         {
-            _lastFailure = DateTimeOffset.UtcNow;
+            NoteFailure(ex.Message);
             throw new ApiException("CAT_UPSTREAM_UNAVAILABLE",
                 "无法连接 TheCatAPI（超时或响应异常），请检查网络后重试");
         }
@@ -208,11 +226,20 @@ public sealed class CatService
         var hot = _breeds;
         if (hot is not null && DateTimeOffset.UtcNow - _breedsAt < BreedsTtl) return hot;
 
+        // 上游近期失败且没有缓存：快速失败，不重复探测
+        if (hot is null && InFailureCooldown) throw FastFail();
+
         await BreedsGate.WaitAsync();
         try
         {
             hot = _breeds;
             if (hot is not null && DateTimeOffset.UtcNow - _breedsAt < BreedsTtl) return hot;
+            // 拿到门后再查一次：排队期间前面的请求可能已经失败了
+            if (InFailureCooldown)
+            {
+                if (hot is not null) return hot;
+                throw FastFail();
+            }
 
             try
             {
@@ -224,9 +251,9 @@ public sealed class CatService
                 return items;
             }
             catch (ApiException) { throw; }
-            catch
+            catch (Exception ex)
             {
-                _lastFailure = DateTimeOffset.UtcNow;
+                NoteFailure(ex.Message);
                 // 上游挂了但缓存还在：返回旧数据（过 TTL 也算），由 ShapeBreeds 标注 cached
                 if (hot is not null) return hot;
                 throw new ApiException("CAT_UPSTREAM_UNAVAILABLE",
@@ -234,6 +261,34 @@ public sealed class CatService
             }
         }
         finally { BreedsGate.Release(); }
+    }
+
+    /// <summary>单航班：相同查询 URL 的并发请求共享同一次上游往返，失败也只探测一次。</summary>
+    private static async Task<CatImage[]> SearchOnceAsync(string url)
+    {
+        Lazy<Task<CatImage[]>>? flight = null;
+        try
+        {
+            flight = SearchFlights.GetOrAdd(url, _ => new Lazy<Task<CatImage[]>>(() => FetchImagesAsync(url)));
+            return await flight.Value.ConfigureAwait(false);
+        }
+        finally
+        {
+            // 完成后移除：下一个请求开始新一轮探测；已在共享同任务的并发方不受影响
+            if (flight is not null)
+                SearchFlights.TryRemove(new KeyValuePair<string, Lazy<Task<CatImage[]>>>(url, flight));
+        }
+    }
+
+    private static async Task<CatImage[]> FetchImagesAsync(string url)
+    {
+        using var doc = await GetJsonAsync(url);
+        var images = ParseImages(doc.RootElement);
+        if (images.Length == 0)
+            throw new ApiException("CAT_NO_IMAGE", "上游未返回图片，可尝试去掉品种筛选或放宽条件");
+        // 只保留最近 20 张，作为上游故障时的兜底
+        _recent = images.Concat(_recent).GroupBy(i => i.Id).Select(g => g.First()).Take(20).ToArray();
+        return images;
     }
 
     private static async Task<JsonDocument> GetJsonAsync(string relativeUrl)
@@ -245,7 +300,11 @@ public sealed class CatService
         if ((int)resp.StatusCode == 401)
             throw new ApiException("CAT_API_KEY_INVALID", "TheCatAPI 拒绝了密钥（401），请检查 THECATAPI_KEY 或 .env.local");
         if ((int)resp.StatusCode == 429)
+        {
+            // 限流时继续打上游只会更糟：进入 30 秒负缓存
+            NoteFailure("上游触发限流 429");
             throw new ApiException("CAT_API_RATE_LIMIT", "TheCatAPI 触发限流（429），请稍后再试");
+        }
 
         resp.EnsureSuccessStatusCode();
         await using var stream = await resp.Content.ReadAsStreamAsync();
