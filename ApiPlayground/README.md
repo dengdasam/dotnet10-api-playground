@@ -44,9 +44,15 @@ Windows 上 `SO_REUSEADDR` 有时允许两个进程绑同一端口，过去反�
 
 定位思路：只看页面会以为是「请求失败」，实际根因大多在窗口里。窗口是唯一的日志出口，`logs [n]` 可随时翻最近输出。
 
+### 「启动不起来」三步定位（2026-11-13 实测）
+
+1. **看是不是残留进程占端口**：`netstat -ano | findstr "5180 5188"`。只写 `taskkill /F /IM ApiPlayground.exe` 杀不掉时，用 `Get-Process ApiPlayground | Stop-Process -Force`（PowerShell）。**直接双击 `ApiPlayground.exe` 起过的实例不带父进程看护，控制器关掉后它仍会活着占 5180**，是这类故障最常见的原因。
+2. **把两段分开验**：`dotnet ApiPlayground\bin\Debug\net10.0\ApiPlayground.dll`（cwd 必须是 `ApiPlayground\` 目录，否则找不到 `wwwroot`）能起 → 后端没问题；再跑 `dotnet ServiceController\bin\Debug\net10.0\ServiceController.dll` 看 5188。
+3. **窗口一闪而过**通常是 5188 被别的程序占用（退出码 1）或已有控制器在跑；事件查看器里查不到 `.NET Runtime` 错误，就说明程序没崩，是环境/端口问题。
+
 ## 环境与启动
 
-要求：本机已安装 .NET SDK 10（`dotnet --version`，本机实测 10.0.302）。
+要求：本机已安装 .NET SDK（编译用；2026-11-13 实测系统为 **11.0.100**，可直接编 net10.0）。**运行**只需要 .NET 10 运行时（实测 `10.0.15`，`dotnet --list-runtimes` 可查）——`Start-ApiPlayground.exe` 是框架依赖单文件，不需要 SDK。
 
 ```bash
 # 在仓库根目录执行；已编译过就直接启动，不重复编译
