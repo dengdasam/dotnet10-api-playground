@@ -10,6 +10,7 @@ namespace ServiceController;
 /// </summary>
 public sealed class ConsoleShell(
     BackendProcess backend, string controllerUrl, Action requestShutdown, string projectDir, string dll)
+    : IControllerUi
 {
     private volatile bool _closing;
     private long _logCursor;
@@ -471,7 +472,14 @@ public sealed class ConsoleShell(
     }
 
     /// <summary>给页面（/control/start|stop）用：把页面上的操作也写进窗口，日志只有一个出口。</summary>
-    internal void LogExternal(string text) => Live(text);
+    public void LogExternal(string text) => Live(text);
+
+    /// <summary>控制器退出前收尾：停掉状态监视循环即可，窗口由进程退出关闭。</summary>
+    public Task ShutdownAsync()
+    {
+        _closing = true;
+        return Task.CompletedTask;
+    }
 
     private void Write(string label, string value, bool ok = false)
     {

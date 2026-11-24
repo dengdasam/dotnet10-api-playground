@@ -213,16 +213,18 @@ public sealed class BackendProcess(string dll, string workDir, string backendUrl
         catch { return false; }
     }
 
-    /// <summary>从最近输出里判断崩溃原因，给窗口和页面一句人话。</summary>
+    /// <summary>从最近输出里判断崩溃原因，给界面一句人话。</summary>
     private string Suspicion()
     {
         var logs = RecentLogs(60);
         if (logs.Any(l => l.Contains("address already in use", StringComparison.OrdinalIgnoreCase)
                        || l.Contains("10048", StringComparison.OrdinalIgnoreCase)))
-            return "：端口 5180 已被其它进程占用，先关掉占用程序的再输入 start。";
+            return "：端口 5180 已被其它进程占用，关掉占用端口的程序后重新启动即可。";
 
         var lastError = logs.LastOrDefault(l => l.Contains("Exception", StringComparison.OrdinalIgnoreCase));
-        return lastError is null ? "，输入 logs 查看主服务输出。" : "：" + lastError.Trim();
+        return lastError is null
+            ? "，详情见日志文件（托盘菜单「查看日志」）"
+            : "：" + lastError.Trim();
     }
 
     private void Append(string? line)

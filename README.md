@@ -12,7 +12,7 @@
 └─────────────────────────┘        │  · /api/* 反向代理            │
                                    │  · /openapi.json 转发         │
                                    └──────────────┬───────────────┘
-                                                  │ 子进程（关闭窗口即停）
+                                                  │ 子进程（退出控制器即停）
                                                   ▼
                                    ┌──────────────────────────────┐
                                    │  ApiPlayground  :5180        │
@@ -21,7 +21,7 @@
 ```
 
 - **端口 5188**：控制器，对外唯一入口。页面、`/control/*`、`/api/*` 全走它。
-- **端口 5180**：主服务，只监听本机，由控制器拉起与停止。**关掉控制器窗口，主服务会一起退出**，不留后台常驻进程。
+- **端口 5180**：主服务，只监听本机，由控制器拉起与停止。**退出控制器（托盘菜单，或 `--console` 模式关窗口），主服务会一起退出**，不留后台常驻进程。
 
 ## 快速开始
 
@@ -29,12 +29,13 @@
 
 | 方式 | 命令 | 说明 |
 | --- | --- | --- |
-| **单文件启动器（推荐）** | 双击 `Start-ApiPlayground.exe` | 自动打开浏览器；窗口关掉服务就停。首次需先 `publish.cmd` 生成 |
-| **脚本启动** | `start.cmd`（Windows）/ `./start.sh`（Linux、WSL、macOS） | 已编译则跳过编译，直接秒启 |
-| **强制重编译** | `start.cmd build` | 改了 C# 代码后用；也可在窗口里输入 `build` |
+| **单文件启动器（推荐）** | 双击 `Start-ApiPlayground.exe` | **托盘模式**：不出黑窗口，图标常驻，右键启停/编译/看日志；日志写 `logs/controller-日期.log`。首次需先 `publish.cmd` 生成 |
+| **命令行模式** | `Start-ApiPlayground.exe --console` | 老式交互窗口，可手打 `start` / `stop` / `build` / `logs` |
+| **脚本启动** | `start.cmd`（Windows）/ `./start.sh`（Linux、WSL、macOS） | 已编译则跳过编译，直接秒启（Windows 脚本走命令行模式） |
+| **强制重编译** | `start.cmd build` | 改了 C# 代码后用；托盘模式点菜单「重新编译并重启」等效 |
 | **仅主服务** | `cd ApiPlayground && dotnet run` | 不带控制器，页面请直接开 `:5180` |
 
-`publish.cmd` / `publish.sh` 会发布单文件 `Start-ApiPlayground.exe`（framework-dependent，约 220 KB，需本机装 .NET 10 运行时）。
+`publish.cmd` / `publish.sh` 会发布单文件 `Start-ApiPlayground.exe`（framework-dependent，约 240 KB，需本机装 .NET 10 运行时）。
 
 ## 接口一览
 
@@ -97,9 +98,21 @@ cp .env.example .env.local
 
 服务端按 `THECATAPI_KEY` → 仓库根 `.env.local` 的顺序读取，请求时自动附加 `x-api-key` 头；**密钥不会出现在页面、URL 或响应里**，`/api/health` 只回报是否已配置。`.env.local` 已被 `.gitignore` 排除，请务必不要把它提交到公开仓库。
 
-## 控制台窗口
+## 界面：托盘（默认）与命令行（`--console`）
 
-双击 exe 或运行 `start.cmd` 后会得到一个交互窗口，服务随手启停：
+双击 `Start-ApiPlayground.exe` 走**托盘模式**：不再弹黑色窗口，任务栏通知区域出现一个状态圆点。
+
+| 图标颜色 | 含义 |
+| --- | --- |
+| 绿 | 主服务运行中 |
+| 灰 | 已停止 |
+| 红 | 异常退出（会弹气泡提示退出码与原因） |
+
+右键菜单：**打开调试页**（双击图标等效）、启动服务、停止服务、重新编译并重启、查看日志、打开日志文件夹、退出（同时停止服务）。
+
+托盘模式没有窗口，所以**日志全部落文件**：`logs/controller-yyyy-MM-dd.log`（单日上限 8 MB，超过停止写入）。主服务输出、页面触发的启停、状态变化（上线 / 离线及原因）都会记进去——服务半夜掉线也能事后对时点。
+
+需要交互命令时加 `--console`（`start.cmd` 已默认带上），行为与改动前一致：
 
 | 命令 | 作用 |
 | --- | --- |
@@ -123,7 +136,7 @@ cp .env.example .env.local
 
 ## 设计要点
 
-- **零 NuGet 依赖**：只用 framework reference；页面是单文件 HTML/CSS/JS，无构建步骤。
+- **零 NuGet 依赖**：只用 framework reference；页面是单文件 HTML/CSS/JS，无构建步骤。托盘图标与右键菜单来自框架自带的 WinForms（`Microsoft.WindowsDesktop.App`），同样没有引入任何第三方包。
 - **天气三级缓存**：按城市缓存 3 分钟 + 单航班（并发同一城市只打一次上游）+ 失败回退旧缓存，响应带 `cached` / `cacheAgeSeconds`。
 - **汇率单航班 + 启动预热**：服务就绪即在后台拉一次汇率，首次换算不再等 1.3 秒。
 - **猫咪接口**：品种列表 30 分钟缓存 + 单航班；最近 20 张图留作上游故障兜底（标 `stale`）；连接超时 2 秒、总超时 6 秒；密钥只从本机环境变量 / `.env.local` 读取。
@@ -151,10 +164,14 @@ cp .env.example .env.local
 │   ├── wwwroot/index.html        # 调试页（双栏文档站，单文件零依赖）
 │   └── README.md                 # 主服务详细文档（接口、缓存、性能）
 ├── ServiceController/            # 控制器（:5188，页面 + 反代 + 进程管理）
-│   ├── Program.cs                # 静态托管、/control/*、/api/* 反代
+│   ├── Program.cs                # 静态托管、/control/*、/api/* 反代、界面模式分流
 │   ├── BackendProcess.cs         # 子进程启停、日志收集、崩溃判定
+│   ├── IControllerUi.cs          # 界面抽象（托盘 / 命令行共用同一套启停逻辑）
+│   ├── TrayShell.cs              # 托盘图标、右键菜单、气泡提示、日志落盘
+│   ├── ConsoleHost.cs            # WinExe 下按需挂控制台（--console 回退用）
 │   ├── ConsoleShell.cs           # 窗口交互命令、精简日志渲染
 │   └── ServiceBuild.cs           # 编译封装
+├── logs/                         # 托盘模式日志（controller-yyyy-MM-dd.log，已被忽略）
 ├── .env.example                  # 密钥配置示例（占位值，可入库）
 ├── .env.local                    # 本机真实密钥（已被忽略，不入库）
 ├── start.cmd / start.sh          # 一键启动（已编译则跳过编译）

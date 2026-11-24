@@ -2,11 +2,27 @@
 set -e
 cd "$(dirname "$0")"
 
+# 控制器现在是 Windows 专属（托盘 GUI，net10.0-windows + WinForms）。
+# 其它平台构建不了，直接退化为只跑主服务，免得抛一堆看不懂的框架错误。
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    ;;
+  *)
+    echo "=========================================================="
+    echo "  The controller (tray GUI) is Windows-only."
+    echo "  Starting the API alone on http://127.0.0.1:5180 instead."
+    echo "=========================================================="
+    echo
+    cd ApiPlayground
+    exec dotnet run --urls http://127.0.0.1:5180
+    ;;
+esac
+
 API_DLL="ApiPlayground/bin/Debug/net10.0/ApiPlayground.dll"
-CTL_DLL="ServiceController/bin/Debug/net10.0/ServiceController.dll"
+CTL_DLL="ServiceController/bin/Debug/net10.0-windows/ServiceController.dll"
 
 echo "=========================================================="
-echo "  .NET 10 API Playground - Service Controller"
+echo "  .NET 10 API Playground - Service Controller (console mode)"
 echo "  Page: http://127.0.0.1:5188/"
 echo "  Type \"help\" in this terminal for commands."
 echo "  Keep this terminal open. Closing it stops both processes."
@@ -28,4 +44,4 @@ else
   echo
 fi
 
-exec dotnet "$CTL_DLL"
+exec dotnet "$CTL_DLL" --console

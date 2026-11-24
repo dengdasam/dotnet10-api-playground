@@ -36,6 +36,7 @@ publish/
 
 # ---------- 运行期杂项 ----------
 *.log
+logs/
 *.tmp
 preview-*.png
 _build_test.log

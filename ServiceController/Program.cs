@@ -10,11 +10,17 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ServiceController;
 
-// 控制台窗口里要输出中文，统一按 UTF-8；重定向或无控制台时忽略失败
-try { Console.OutputEncoding = Encoding.UTF8; } catch { /* 无控制台 */ }
-
 const string ControllerUrl = "http://127.0.0.1:5188";
 const string BackendUrl = "http://127.0.0.1:5180";
+
+// 界面外壳：默认托盘（双击不出黑窗口），加 --console 保留原来的命令行窗口。
+// 必须在设置 Console.OutputEncoding 之前挂控制台，否则编码设置打在 Stream.Null 上。
+var consoleMode = args.Any(a => a.Equals("--console", StringComparison.OrdinalIgnoreCase)
+                             || a.Equals("-c", StringComparison.OrdinalIgnoreCase));
+if (consoleMode) ConsoleHost.TryAttach();
+
+// 控制台窗口里要输出中文，统一按 UTF-8；重定向或无控制台时忽略失败
+try { Console.OutputEncoding = Encoding.UTF8; } catch { /* 无控制台 */ }
 
 // 从 exe 所在目录逐级向上找包含 ApiPlayground/ 的目录；这样发布成单文件 exe 放在任何位置都能定位项目
 static string ResolveRoot()
@@ -30,16 +36,16 @@ static string ResolveRoot()
     return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
 }
 
-static void OpenBrowser(string url)
+static void OpenBrowser(string url, Action<string> say)
 {
     try
     {
         Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] 已在默认浏览器打开 {url}");
+        say($"[{DateTime.Now:HH:mm:ss}] 已在默认浏览器打开 {url}");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] 无法自动打开浏览器（{ex.Message}），请手动访问 {url}");
+        say($"[{DateTime.Now:HH:mm:ss}] 无法自动打开浏览器（{ex.Message}），请手动访问 {url}");
     }
 }
 
@@ -88,8 +94,35 @@ var projectDir = Path.Combine(root, "ApiPlayground");
 var wwwroot = Path.Combine(projectDir, "wwwroot");
 var dll = Path.Combine(projectDir, "bin", "Debug", "net10.0", "ApiPlayground.dll");
 
+// 托盘模式没有窗口，日志必须落文件，否则出问题完全无从查起
+var logFile = Path.Combine(root, "logs", $"controller-{DateTime.Now:yyyy-MM-dd}.log");
+
+// 统一输出出口：同时写日志文件与窗口。托盘模式下窗口那句会落进 Stream.Null，等于只写文件
+void Say(string text)
+{
+    TrayShell.AppendFile(logFile, text);
+    try { Console.WriteLine(text); } catch { /* 无控制台 */ }
+}
+
+// 托盘模式没有窗口可看，必须让用户知道的事（端口被占、启动失败）改用对话框
+void Alert(string title, string text)
+{
+    Say($"[{DateTime.Now:HH:mm:ss}] {title}：{text.Replace(Environment.NewLine, " ")}");
+    if (consoleMode) return;
+    try
+    {
+        System.Windows.Forms.MessageBox.Show(
+            text, title, System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Warning);
+    }
+    catch { /* 没有桌面环境时，至少已经写进日志 */ }
+}
+
 // 命令行开关：--no-browser 不自动打开页面
 var autoOpenBrowser = !args.Any(a => a.Equals("--no-browser", StringComparison.OrdinalIgnoreCase));
+
+// 把实际收到的参数写进日志：排查"为什么又自己开了浏览器"这类问题全靠这一行
+Say($"[{DateTime.Now:HH:mm:ss}] 启动参数：{(args.Length == 0 ? "（无）" : string.Join(" ", args))}"
+    + $"｜模式：{(consoleMode ? "命令行" : "托盘")}｜自动打开页面：{(autoOpenBrowser ? "是" : "否")}");
 
 // ---------- 重复启动保护 ----------
 // 之前重复双击 exe 时，第二个实例会在 Kestrel 绑定时抛 IOException（address already in use），
@@ -107,41 +140,41 @@ if (!isFirst)
 
 if (await LooksLikeOursAsync(5188))
 {
-    Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] 检测到已有控制器在运行（端口 5188）。");
-    Console.WriteLine(autoOpenBrowser
-        ? "  本次不再重复启动，已为你打开页面；本窗口可以关闭。"
-        : "  本次不再重复启动；本窗口可以关闭。");
-    Console.WriteLine($"  页面地址：{ControllerUrl}/");
-    Console.WriteLine("  提示：启动/停止与请求日志都打在**那个**已在运行的窗口里，本窗口只负责把页面打开。");
-    if (autoOpenBrowser) OpenBrowser(ControllerUrl + "/");
-    PauseIfInteractive();
+    Say($"[{DateTime.Now:HH:mm:ss}] 检测到已有控制器在运行（端口 5188）。");
+    Say(autoOpenBrowser
+        ? "  本次不再重复启动，已为你打开页面。"
+        : "  本次不再重复启动；托盘图标在**那个**已运行的进程里。");
+    Say($"  页面地址：{ControllerUrl}/");
+    if (autoOpenBrowser) OpenBrowser(ControllerUrl + "/", Say);
+    // 托盘模式下这一下双击什么窗口都不会出现：没自动开页面时必须给个对话框，否则像"点了没反应"
+    else Alert("控制器已在运行", $"已有控制器在运行（端口 5188）。\n页面地址：{ControllerUrl}/\n托盘图标在那个进程里，双击它会打开页面。");
+    if (consoleMode) PauseIfInteractive();
     return 0;
 }
 
 if (PortBusy(5188))
 {
-    Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] 控制台端口 5188 已被其它程序占用。");
-    Console.WriteLine("  占用者不是本程序，无法启动控制台。");
-    Console.WriteLine("  请先关闭占用 5188 端口的程序（netstat -ano | findstr 5188），再重新双击本 exe。");
-    PauseIfInteractive();
+    Alert("端口被占用", $"控制台端口 5188 已被其它程序占用，无法启动。\n"
+        + "请先关闭占用该端口的程序（netstat -ano | findstr 5188），再重新运行本程序。");
+    if (consoleMode) PauseIfInteractive();
     return 1;
 }
 
-// 首次运行（或误删 bin）时先把主服务编译出来，否则窗口里只会看到启动失败
+// 首次运行（或误删 bin）时先把主服务编译出来，否则只有一句启动失败
 if (!File.Exists(dll))
 {
-    Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] 未找到已编译的主服务，正在执行 dotnet build …");
+    Say($"[{DateTime.Now:HH:mm:ss}] 未找到已编译的主服务，正在执行 dotnet build …");
     var (built, _, tail) = await ServiceBuild.BuildAsync(projectDir, 6);
-    foreach (var line in tail) Console.WriteLine("  " + line);
-    Console.WriteLine(built
+    foreach (var line in tail) Say("  " + line);
+    Say(built
         ? $"[{DateTime.Now:HH:mm:ss}] 编译完成"
-        : $"[{DateTime.Now:HH:mm:ss}] 编译失败，启动后请在窗口里修正并输入 build 重试");
-    Console.WriteLine();
+        : $"[{DateTime.Now:HH:mm:ss}] 编译失败，启动后请在托盘菜单里点「重新编译并重启」");
+    Say("");
 }
 
 var bootClock = Stopwatch.StartNew();
 var backend = new BackendProcess(dll, projectDir, BackendUrl, ControllerUrl);
-ConsoleShell? shell = null;      // 页面触发的启停也要写进窗口日志，端点里用这个引用
+IControllerUi? ui = null;        // 页面触发的启停也要写进日志出口，端点里用这个引用
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls(ControllerUrl);
@@ -161,18 +194,18 @@ app.UseStaticFiles(new StaticFileOptions { FileProvider = files });
 app.MapGet("/control/status", () => Results.Json(backend.Status()));
 app.MapPost("/control/start", async () =>
 {
-    shell?.LogExternal("页面点了「启动服务」，正在拉起主服务…");
+    ui?.LogExternal("页面点了「启动服务」，正在拉起主服务…");
     var st = await backend.StartAsync();
-    shell?.LogExternal(backend.Running
+    ui?.LogExternal(backend.Running
         ? $"页面启动完成：主服务运行中（pid {backend.Pid}）"
         : "页面启动未成功：" + backend.Message);
     return Results.Json(st);
 });
 app.MapPost("/control/stop", async () =>
 {
-    shell?.LogExternal("页面点了「停止服务」，正在优雅停止…");
+    ui?.LogExternal("页面点了「停止服务」，正在优雅停止…");
     var st = await backend.StopAsync();
-    shell?.LogExternal("页面停止完成：" + backend.Message);
+    ui?.LogExternal("页面停止完成：" + backend.Message);
     return Results.Json(st);
 });
 
@@ -272,62 +305,98 @@ app.Map("/openapi.json", proxyToBackend);   // 文档不在 /api 前缀下，单
 // 控制器退出时一并结束主服务，避免留下孤儿进程
 app.Lifetime.ApplicationStopping.Register(backend.KillChild);
 
-// 窗口里给一行就绪时间，方便判断"页面什么时候能点"
-app.Lifetime.ApplicationStarted.Register(() =>
-    Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] 控制器已就绪（{bootClock.ElapsedMilliseconds} ms），页面 {ControllerUrl}/"));
+// ---------- 界面外壳 ----------
+// 先建外壳再拉起主服务：这样自动启动那一步产生的日志也有明确出口（托盘写文件 / 控制台写窗口）
+if (consoleMode)
+{
+    var shell = new ConsoleShell(backend, ControllerUrl, () => app.Lifetime.StopApplication(), projectDir, dll);
+    ui = shell;
+    _ = Task.Run(shell.RunAsync);
+}
+else
+{
+    // 整个 TrayShell（含 NotifyIcon / 菜单 / 定时器）必须在同一个 STA 线程上创建和使用，
+    // 所以不在主线程 new，而是让工作线程先构造、再进入消息泵。
+    TrayShell? tray = null;
+    var ready = new ManualResetEventSlim(false);
+    var thread = new Thread(() =>
+    {
+        try
+        {
+            tray = new TrayShell(backend, ControllerUrl, projectDir, logFile, () => app.Lifetime.StopApplication());
+            ready.Set();
+            tray.Run();
+        }
+        catch (Exception ex)
+        {
+            ready.Set();
+            Say($"[{DateTime.Now:HH:mm:ss}] ✖ 托盘线程异常：{ex.Message}");
+        }
+    })
+    { IsBackground = false, Name = "tray-ui" };
+    thread.SetApartmentState(ApartmentState.STA);   // WinForms 要求 STA
+    thread.Start();
+    ready.Wait(5000);
+    ui = tray;
+}
 
-// 关闭控制台窗口（CTRL_CLOSE_EVENT）或被强制结束时不一定会走 ApplicationStopping，
+// 给一行就绪时间，方便判断「页面什么时候能点」；托盘模式下这行只落日志文件
+app.Lifetime.ApplicationStarted.Register(() =>
+    Say($"[{DateTime.Now:HH:mm:ss}] 控制器已就绪（{bootClock.ElapsedMilliseconds} ms），页面 {ControllerUrl}/"));
+
+// 关闭窗口（CTRL_CLOSE_EVENT）或被强制结束时不一定会走 ApplicationStopping，
 // 这里再兜一层：进程退出前尽力杀掉子进程
 AppDomain.CurrentDomain.ProcessExit += (_, _) => backend.KillChild();
 
-// 控制器启动后自动拉起主服务，页面开箱可用；可在页面上停止后再启动
+// 控制器启动后自动拉起主服务，页面开箱可用；可在页面上或托盘菜单里停止后再启动
 _ = Task.Run(async () =>
 {
     try
     {
         await backend.StartAsync();
+        ui?.LogExternal(backend.Running
+            ? $"主服务已上线（pid {backend.Pid}）"
+            : "主服务启动未成功：" + backend.Message);
 
-        // 主服务就绪后自动打开页面（窗口里输入 --no-browser 启动可关闭）
+        // 主服务就绪后自动打开页面（--no-browser 可关闭）
         if (autoOpenBrowser && backend.Running)
         {
             await Task.Delay(400);
-            OpenBrowser(ControllerUrl + "/");
+            OpenBrowser(ControllerUrl + "/", Say);
         }
     }
-    catch (Exception ex) { Console.Error.WriteLine("自动启动主服务失败：" + ex.Message); }
+    catch (Exception ex) { Say($"[{DateTime.Now:HH:mm:ss}] 自动启动主服务失败：{ex.Message}"); }
 });
 
-// 交互式控制台：窗口里直接用命令启停；exit / Ctrl+C / 关窗口都会一并停掉主服务
-shell = new ConsoleShell(backend, ControllerUrl, () => app.Lifetime.StopApplication(), projectDir, dll);
-_ = Task.Run(shell.RunAsync);
-
-// Ctrl+C 先优雅停主服务再退出控制器，避免直接强杀子进程
-try
+// Ctrl+C 先优雅停主服务再退出控制器，避免直接强杀子进程（托盘模式没有控制台，跳过）
+if (consoleMode)
 {
-    Console.CancelKeyPress += (_, e) =>
+    try
     {
-        e.Cancel = true;   // 拦下默认的立即终止
-        _ = Task.Run(async () =>
+        Console.CancelKeyPress += (_, e) =>
         {
-            try { await backend.StopAsync(); } catch { /* 忽略 */ }
-            app.Lifetime.StopApplication();
-        });
-    };
+            e.Cancel = true;   // 拦下默认的立即终止
+            _ = Task.Run(async () =>
+            {
+                try { await backend.StopAsync(); } catch { /* 忽略 */ }
+                app.Lifetime.StopApplication();
+            });
+        };
+    }
+    catch { /* 无控制台环境忽略 */ }
 }
-catch { /* 无控制台环境忽略 */ }
 
 try
 {
     await app.RunAsync();
+    if (ui is not null) await ui.ShutdownAsync();   // 让托盘图标消失 / 停掉状态轮询
     return 0;
 }
 catch (IOException ex)
 {
     // 端口在预检之后又被抢占（或权限问题）：给中文提示，不要把英文堆栈甩给用户
-    Console.WriteLine();
-    Console.WriteLine("[启动失败] " + ex.Message);
-    Console.WriteLine($"  控制台端口 {ControllerUrl} 无法监听，可能刚刚被其它程序占用。");
-    Console.WriteLine("  请关闭占用 5188 的程序后重试（netstat -ano | findstr 5188）。");
-    PauseIfInteractive();
+    Alert("启动失败", $"控制台端口 {ControllerUrl} 无法监听，可能刚刚被其它程序占用。\n"
+        + $"请关闭占用 5188 的程序后重试（netstat -ano | findstr 5188）。\n\n{ex.Message}");
+    if (consoleMode) PauseIfInteractive();
     return 1;
 }

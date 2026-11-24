@@ -6,7 +6,7 @@
 
 ## 架构与端口
 
-页面由 **ServiceController（控制台应用）** 托管，主服务由它按需拉起与停止。它不是后台服务，就是你双击打开的那个窗口：窗口在则服务在，关窗口全部停止。
+页面由 **ServiceController（Windows 托盘程序）** 托管，主服务由它按需拉起与停止。它不是系统服务：托盘图标在则服务在，退出托盘（或 `--console` 模式下关闭窗口）全部停止。
 
 | 组件 | 端口 | 职责 |
 | --- | --- | --- |
@@ -17,19 +17,25 @@
 
 ## 双击即用（Windows exe）
 
-工作区根目录打包了一个控制台程序 **`Start-ApiPlayground.exe`**（单文件约 212 KB，使用本机已安装的 .NET 10 运行时）。双击它就会：
+工作区根目录打包了一个托盘程序 **`Start-ApiPlayground.exe`**（单文件约 240 KB，使用本机 .NET 10 运行时 + 框架自带的 WinForms）。双击它就会：
 
 1. 检查主服务是否已编译，缺少 dll 时自动执行 `dotnet build`；
 2. 启动控制器（5188）并拉起主服务（5180）；
 3. 服务就绪后**自动用默认浏览器打开** `http://127.0.0.1:5188/`；
-4. 窗口里继续可用 `start / stop / restart / build / logs / open` 等命令。
+4. 通知区域出现状态圆点（绿=运行中 / 灰=已停止 / 红=异常），右键可启停、重新编译、查看日志。
 
-关闭窗口 = 全部停止，不留后台进程。
+**不弹黑色窗口**：所有日志写入 `logs/controller-yyyy-MM-dd.log`，托盘菜单「查看日志」直接打开。想用交互命令就加 `--console`（`start.cmd` 已默认带上）。
 
-- 不想自动开浏览器：`Start-ApiPlayground.exe --no-browser`
-- 改过 `ServiceController` 自身代码后：运行根目录 `publish.cmd`（或 `bash publish.sh`）重新生成 exe；
-- 只改主服务代码或页面：不用重新发布，窗口里输入 `build`，或直接重新双击 exe 即可；
-- exe 可重命名、可建桌面快捷方式，它通过逐级向上查找 `ApiPlayground/ApiPlayground.csproj` 定位项目，也可用环境变量 `API_PLAYGROUND_ROOT` 指定。
+| 参数 | 行为 |
+| --- | --- |
+| （无） | 托盘模式，自动打开页面 |
+| `--no-browser` | 托盘模式，不自动打开页面 |
+| `--console` | 老式命令行窗口，可打 `start` / `stop` / `build` / `logs` |
+
+- 改过 `ServiceController` 自身代码后：运行根目录 `publish.cmd`（或 `bash publish.sh`）重新生成 exe；日常小改用托盘菜单「重新编译并重启」即可；
+- 只改主服务代码或页面：不用重新发布，托盘菜单「重新编译并重启」，或 `--console` 模式输入 `build`；
+- exe 可重命名、可建桌面快捷方式，它通过逐级向上查找 `ApiPlayground/ApiPlayground.csproj` 定位项目，也可用环境变量 `API_PLAYGROUND_ROOT` 指定；
+- **仅支持 Windows**：托盘依赖 WinForms（目标框架 `net10.0-windows`）。Linux / macOS 上 `start.sh` 会自动退化为只跑主服务。
 
 ## 重复启动与异常退出
 
@@ -37,12 +43,12 @@ Windows 上 `SO_REUSEADDR` 有时允许两个进程绑同一端口，过去反�
 
 | 情形 | 现在的行为 |
 | --- | --- |
-| **重复双击 exe** | 先发 HTTP 问 `127.0.0.1:5188/control/status`，确认是自己在跑 → 提示「已有控制器在运行」，直接打开页面，本次进程退出（退出码 0），不再抢端口 |
-| **5188 被别的程序占用** | 中文提示占用端口与排查命令（`netstat -ano \| findstr 5188`），退出码 1，窗口停住等按键，不会一闪而过 |
+| **重复双击 exe** | 先发 HTTP 问 `127.0.0.1:5188/control/status`，确认是自己在跑 → 托盘模式直接打开页面后退出；带 `--no-browser` 时弹对话框说明「托盘图标在那个进程里」 |
+| **5188 被别的程序占用** | 中文提示占用端口与排查命令（`netstat -ano \| findstr 5188`），退出码 1；托盘模式弹对话框说明原因，命令行模式停住等按键 |
 | **5180 已被主服务占用** | 主服务内置按端口的命名互斥体，第二个实例只打印「已有主服务在运行，本次不重复启动」后退出，避免两个后端并存把请求分走 |
-| **主服务中途崩溃** | 控制器捕获 `Exited` 事件，窗口打印「主服务异常退出（退出码 N）」＋最后几行输出＋处置建议；页面徽标变为 **服务异常退出**，接口返回 `SERVICE_UNAVAILABLE` 信封且 `error.message` 带崩溃原因 |
+| **主服务中途崩溃** | 控制器捕获 `Exited` 事件，托盘图标变红并弹气泡提示（含退出码与原因），日志写入「状态变化：主服务已离线（原因）」；页面徽标变为 **服务异常退出**，接口返回 `SERVICE_UNAVAILABLE` 信封且 `error.message` 带崩溃原因 |
 
-定位思路：只看页面会以为是「请求失败」，实际根因大多在窗口里。窗口是唯一的日志出口，`logs [n]` 可随时翻最近输出。
+定位思路：只看页面会以为是「请求失败」，实际根因都在日志里。托盘模式翻 `logs/controller-日期.log`（或菜单「查看日志」），`--console` 模式看窗口，`logs [n]` 可随时翻最近输出。
 
 ## 调试台页面交互（2026-11-24 套餐 ①）
 
@@ -62,7 +68,7 @@ Windows 上 `SO_REUSEADDR` 有时允许两个进程绑同一端口，过去反�
 
 1. **看是不是残留进程占端口**：`netstat -ano | findstr "5180 5188"`。只写 `taskkill /F /IM ApiPlayground.exe` 杀不掉时，用 `Get-Process ApiPlayground | Stop-Process -Force`（PowerShell）。**直接双击 `ApiPlayground.exe` 起过的实例不带父进程看护，控制器关掉后它仍会活着占 5180**，是这类故障最常见的原因。
 2. **把两段分开验**：`dotnet ApiPlayground\bin\Debug\net10.0\ApiPlayground.dll`（cwd 必须是 `ApiPlayground\` 目录，否则找不到 `wwwroot`）能起 → 后端没问题；再跑 `dotnet ServiceController\bin\Debug\net10.0\ServiceController.dll` 看 5188。
-3. **窗口一闪而过**通常是 5188 被别的程序占用（退出码 1）或已有控制器在跑；事件查看器里查不到 `.NET Runtime` 错误，就说明程序没崩，是环境/端口问题。
+3. **双击后毫无反应**（托盘模式不再有窗口可看）通常是 5188 被别的程序占用（退出码 1）或已有控制器在跑——先翻 `logs/controller-日期.log` 最后几行，再看是不是有对话框被压在别的窗口后面；事件查看器里查不到 `.NET Runtime` 错误，就说明程序没崩，是环境/端口问题。
 
 ## 环境与启动
 
@@ -109,9 +115,9 @@ dotnet run --project ServiceController
 
 主服务未启动时 `/api/*` 返回 `503` 与统一信封（`error.code = SERVICE_UNAVAILABLE`），页面提示先点「启动服务」。控制器退出时会一并结束主服务，避免留下孤儿进程。
 
-## 控制台窗口
+## 命令行模式（`--console`）
 
-控制器本身就是一个带命令行的前台程序：`start.cmd` / `start.sh` 打开的窗口里可直接输入命令管理服务，窗口标题实时显示当前状态（运行中 / 已停止 + PID）。
+控制器默认是**托盘图标**；加 `--console` 就回到带命令行的前台程序，`start.cmd` / `start.sh` 打开的窗口里可直接输入命令管理服务，窗口标题实时显示当前状态（运行中 / 已停止 + PID）。托盘模式的功能是它的子集（启停、重新编译、看日志都能在右键菜单里点到），两者共用同一套 `BackendProcess` 逻辑。
 
 | 命令 | 作用 |
 | --- | --- |
@@ -127,7 +133,7 @@ dotnet run --project ServiceController
 | `help` | 帮助 |
 | `exit` | 优雅停止主服务并退出控制器 |
 
-主服务的输出通过重定向被控制器收集（保留最近 400 行），并且**实时打印在本窗口**；控制器拉起主服务时会注入 `API_LOG_LEVEL=Information`，所以**页面点「启动服务」或窗口里 `start`，立刻能看到启动与请求记录**。
+主服务的输出通过重定向被控制器收集（保留最近 400 行），`--console` 模式下**实时打印在本窗口**；托盘模式下同样的内容逐行写进 `logs/controller-日期.log`。控制器拉起主服务时会注入 `API_LOG_LEVEL=Information`，所以**页面点「启动服务」或窗口里 `start`，立刻能看到启动与请求记录**。
 
 窗口显示的是**精简后的日志**，框架那些 `info: Microsoft.Hosting.Lifetime[14]` 之类的结构行不会出现（主服务侧用 `AddSimpleConsole(SingleLine)` 输出单行，控制器侧再按类别收敛）：
 
@@ -142,7 +148,7 @@ dotnet run --project ServiceController
 
 > 直接 `dotnet run` 主服务时仍默认 `Warning`（压测时每请求的同步 I/O 比业务本身还贵）；只有在控制台窗口里跑才开 Info。
 
-`exit`、`Ctrl+C`、关闭窗口三种方式都会结束控制器并一并停掉主服务。标准输入被重定向时（例如注册为后台服务），命令循环自动退出，控制器继续无界面运行，页面与控制接口照常可用。
+`exit`、`Ctrl+C`、关闭窗口三种方式都会结束控制器并一并停掉主服务；托盘模式对应右键菜单「退出（同时停止服务）」。标准输入被重定向时（例如注册为后台服务），命令循环自动退出，控制器继续无界面运行，页面与控制接口照常可用。
 
 **不会在后台残留进程**，有三重保障：
 
