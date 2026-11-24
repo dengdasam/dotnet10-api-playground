@@ -152,6 +152,27 @@ input::placeholder{color:var(--ink3)}
 .pill.off{color:var(--ink3)}
 /* 结果区右侧的「复制 JSON」：小号按钮，不抢主操作视觉 */
 .res-head .copy-json{margin-left:auto;font-size:11px;padding:3px 9px}
+/* 代码片段语言：工具栏里一个下拉，22 个按钮文案跟着变，避免每张卡片塞一个 select */
+.toolbar .lang-pick{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink2)}
+.toolbar .lang-pick select{width:auto;min-width:104px;padding:4px 8px;font-size:11.5px}
+/* 接口清单过滤 */
+.ep-filter{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:9px}
+.ep-filter input{flex:1 1 220px;max-width:360px}
+.ep-filter .hit{font-size:11.5px;color:var(--ink3);font-variant-numeric:tabular-nums;margin-left:auto}
+.ep-filter .hit b{color:var(--accent);font-weight:600}
+.chips button.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+tr.no-hit td{color:var(--ink3);font-size:12px;padding:16px 13px}
+/* 请求历史：侧栏里的小时间线，点一条回填参数并重放 */
+.side-block .k span{color:var(--accent);font-weight:600;font-variant-numeric:tabular-nums}
+.hist{display:flex;flex-direction:column;gap:1px;max-height:200px;overflow-y:auto;margin-right:-4px;padding-right:4px}
+.hist-empty{font-size:11px;color:var(--ink3);line-height:1.65}
+.hist-item{display:flex;align-items:baseline;gap:7px;width:100%;padding:4px 7px;border:1px solid transparent;background:transparent;border-radius:4px;text-align:left;font-size:11px;color:var(--ink2)}
+.hist-item:hover:not(:disabled){border-color:var(--accent-line);background:var(--accent-soft);color:var(--accent)}
+.hist-item .hn{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:10.5px}
+.hist-item .hm{flex:0 0 auto;font-variant-numeric:tabular-nums;color:var(--ink3);font-size:10.5px}
+/* 失败重试：贴在结论块右侧，不额外占一行 */
+.final-box .retry{margin-left:10px;font-size:11px;padding:1px 10px;vertical-align:baseline;border-color:var(--accent-line);color:var(--accent)}
+.final-box .retry:hover:not(:disabled){background:var(--accent);color:#fff;border-color:var(--accent)}
 .result{margin-top:8px;background:var(--code);border:1px solid var(--line);border-radius:6px;padding:12px 15px;font-family:var(--mono);font-size:11.5px;line-height:1.7;color:#4B555C;max-height:330px;overflow:auto;white-space:pre-wrap;word-break:break-word}
 .result.empty{color:var(--ink3)}
 .j-key{color:var(--accent);font-weight:600}
@@ -200,6 +221,10 @@ details .result{margin-bottom:16px}
 <div class="row"><span>第三方包</span><b>0</b></div>
 </div>
 <div class="side-status">统一响应包装 · 开放访问<br>天气断网时自动降级<br>猫图上游异常时回退缓存<br>犬种索引走种子＋磁盘缓存</div>
+<div class="side-block">
+<div class="k">请求历史 <span id="hist-count">0</span></div>
+<div class="hist" id="hist-list"><div class="hist-empty">发一次请求后这里记录最近 12 条<br>点任意一条可回填参数并重放</div></div>
+</div>
 <div class="side-foot">数据来源：Open-Meteo / TheCatAPI / dogapi.dog / 本地确定性模拟<br>密钥仅存本地 .env.local，不入库<br>零 NuGet 依赖 · 单文件静态页面</div>
 </aside>
 
@@ -230,9 +255,17 @@ details .result{margin-bottom:16px}
 <button type="button" id="btn-stop" onclick="controlStop(this)">停止服务</button>
 <button type="button" onclick="initData()">刷新辅助数据</button>
 <button type="button" onclick="resetFields()" title="清除本页记住的参数并恢复默认值">重置参数</button>
+<span class="lang-pick" title="复制代码片段时使用的语言"><label for="code-lang">片段</label><select id="code-lang" onchange="setLang(this.value)"></select></span>
 </div>
 
 <div class="sec" id="sec1"><span class="num">01</span><h2>概览与接口清单</h2><span class="tag">服务自描述</span></div>
+
+<div class="ep-filter">
+<input id="ep-q" type="search" placeholder="过滤接口：方法 / 路径 / 分组 / 说明关键字" autocomplete="off" spellcheck="false">
+<span class="hit" id="ep-hit"><b>22</b> / 22</span>
+<button type="button" onclick="clearEpFilter()">清空过滤</button>
+</div>
+<div class="chips" id="ep-chips"></div>
 
 <div class="table-wrap">
 <table>
@@ -245,7 +278,7 @@ details .result{margin-bottom:16px}
 <h3><span class="idx">01</span>服务健康检查 <span class="note">GET</span></h3>
 <span class="path">GET /api/health</span>
 <div class="why">返回运行时版本、监听地址、已注册端点数与服务器时间，可直接用于探活。</div>
-<div class="cmdrow"><span class="note">无需参数</span><button type="button" onclick="copyCurl('health', this)">复制 cURL</button><button type="button" class="primary" onclick="run('health')">发送请求</button></div>
+<div class="cmdrow"><span class="note">无需参数</span><button type="button" onclick="copyCode('health', this)">复制 cURL</button><button type="button" class="primary" onclick="run('health')">发送请求</button></div>
 <div class="res-head"><span class="pill" id="pill-health">尚未调用</span><span class="note" id="meta-health"></span></div>
 <pre class="result empty" id="res-health">点击「发送请求」查看响应。</pre>
 </div>
@@ -254,7 +287,7 @@ details .result{margin-bottom:16px}
 <h3><span class="idx">02</span>接口清单原始响应 <span class="note">GET</span></h3>
 <span class="path">GET /api</span>
 <div class="why">上表即由该接口动态渲染。返回每条记录的方法、路径、分组与说明。</div>
-<div class="cmdrow"><span class="note">无需参数</span><button type="button" onclick="copyCurl('index', this)">复制 cURL</button><button type="button" class="primary" onclick="run('index')">发送请求</button></div>
+<div class="cmdrow"><span class="note">无需参数</span><button type="button" onclick="copyCode('index', this)">复制 cURL</button><button type="button" class="primary" onclick="run('index')">发送请求</button></div>
 <div class="res-head"><span class="pill" id="pill-index">尚未调用</span><span class="note" id="meta-index"></span></div>
 <pre class="result empty" id="res-index">点击「发送请求」查看响应。</pre>
 </div>
@@ -269,7 +302,7 @@ details .result{margin-bottom:16px}
 <div class="field"><label for="w-city">内置城市（下拉）</label><select id="w-city"></select></div>
 <div class="field"><label for="w-custom">或输入任意城市名（优先）</label><input id="w-custom" placeholder="如：苏州 / Tokyo，留空则用下拉值"></div>
 </div>
-<div class="cmdrow"><span class="note">自定义输入非空时覆盖下拉选择</span><button type="button" onclick="copyCurl('weather', this)">复制 cURL</button><button type="button" class="primary" onclick="run('weather')">发送请求</button></div>
+<div class="cmdrow"><span class="note">自定义输入非空时覆盖下拉选择</span><button type="button" onclick="copyCode('weather', this)">复制 cURL</button><button type="button" class="primary" onclick="run('weather')">发送请求</button></div>
 <div class="res-head"><span class="pill" id="pill-weather">尚未调用</span><span class="note" id="meta-weather"></span></div>
 <pre class="result empty" id="res-weather">点击「发送请求」查看响应。</pre>
 </div>
@@ -305,7 +338,7 @@ details .result{margin-bottom:16px}
 <div class="form-grid">
 <div class="field full"><label for="c-expr">表达式（点击上方示例会自动发送）</label><input id="c-expr" value="1+2*(3-4)/5" spellcheck="false"></div>
 </div>
-<div class="cmdrow"><span class="note">也支持 GET /api/calculator?expression=...</span><button type="button" onclick="copyCurl('calc', this)">复制 cURL</button><button type="button" class="primary" onclick="run('calc')">发送请求</button></div>
+<div class="cmdrow"><span class="note">也支持 GET /api/calculator?expression=...</span><button type="button" onclick="copyCode('calc', this)">复制 cURL</button><button type="button" class="primary" onclick="run('calc')">发送请求</button></div>
 <div class="res-head"><span class="pill" id="pill-calc">尚未调用</span><span class="note" id="meta-calc"></span></div>
 <pre class="result empty" id="res-calc">点击「发送请求」查看响应。</pre>
 </div>
@@ -330,7 +363,7 @@ details .result{margin-bottom:16px}
 <div class="form-grid">
 <div class="field"><label for="t-now-zone">时区</label><select id="t-now-zone"></select></div>
 </div>
-<div class="cmdrow"><span class="note">使用 IANA 时区标识</span><button type="button" onclick="copyCurl('tnow', this)">复制 cURL</button><button type="button" class="primary" onclick="run('tnow')">发送请求</button></div>
+<div class="cmdrow"><span class="note">使用 IANA 时区标识</span><button type="button" onclick="copyCode('tnow', this)">复制 cURL</button><button type="button" class="primary" onclick="run('tnow')">发送请求</button></div>
 <div class="res-head"><span class="pill" id="pill-tnow">尚未调用</span><span class="note" id="meta-tnow"></span></div>
 <pre class="result empty" id="res-tnow">点击「发送请求」查看响应。</pre>
 </div>
@@ -344,7 +377,7 @@ details .result{margin-bottom:16px}
 <div class="field"><label for="t-from">源时区</label><select id="t-from"></select></div>
 <div class="field"><label for="t-to">目标时区</label><select id="t-to"></select></div>
 </div>
-<div class="cmdrow"><span class="note">时间格式：2026-11-12 13:30 / ISO 8601</span><button type="button" onclick="copyCurl('tconv', this)">复制 cURL</button><button type="button" class="primary" onclick="run('tconv')">发送请求</button></div>
+<div class="cmdrow"><span class="note">时间格式：2026-11-12 13:30 / ISO 8601</span><button type="button" onclick="copyCode('tconv', this)">复制 cURL</button><button type="button" class="primary" onclick="run('tconv')">发送请求</button></div>
 <div class="res-head"><span class="pill" id="pill-tconv">尚未调用</span><span class="note" id="meta-tconv"></span></div>
 <pre class="result empty" id="res-tconv">点击「发送请求」查看响应。</pre>
 </div>
@@ -357,7 +390,7 @@ details .result{margin-bottom:16px}
 <div class="field"><label for="t-start">开始时间</label><input id="t-start" value="2026-01-01" spellcheck="false"></div>
 <div class="field"><label for="t-end">结束时间</label><input id="t-end" value="2026-11-12 13:30" spellcheck="false"></div>
 </div>
-<div class="cmdrow"><span class="note">默认按 Asia/Shanghai 解释</span><button type="button" onclick="copyCurl('tdiff', this)">复制 cURL</button><button type="button" class="primary" onclick="run('tdiff')">发送请求</button></div>
+<div class="cmdrow"><span class="note">默认按 Asia/Shanghai 解释</span><button type="button" onclick="copyCode('tdiff', this)">复制 cURL</button><button type="button" class="primary" onclick="run('tdiff')">发送请求</button></div>
 <div class="res-head"><span class="pill" id="pill-tdiff">尚未调用</span><span class="note" id="meta-tdiff"></span></div>
 <pre class="result empty" id="res-tdiff">点击「发送请求」查看响应。</pre>
 </div>
@@ -382,7 +415,7 @@ details .result{margin-bottom:16px}
 <div class="field"><label for="u-from">源单位</label><select id="u-from"></select></div>
 <div class="field"><label for="u-to">目标单位</label><select id="u-to"></select></div>
 </div>
-<div class="cmdrow"><span class="note">切换类别会自动刷新单位下拉</span><button type="button" onclick="copyCurl('uconv', this)">复制 cURL</button><button type="button" class="primary" onclick="run('uconv')">发送请求</button></div>
+<div class="cmdrow"><span class="note">切换类别会自动刷新单位下拉</span><button type="button" onclick="copyCode('uconv', this)">复制 cURL</button><button type="button" class="primary" onclick="run('uconv')">发送请求</button></div>
 <div class="res-head"><span class="pill" id="pill-uconv">尚未调用</span><span class="note" id="meta-uconv"></span></div>
 <pre class="result empty" id="res-uconv">点击「发送请求」查看响应。</pre>
 </div>
@@ -414,7 +447,7 @@ details .result{margin-bottom:16px}
 <div class="field"><label for="cat-size">图片尺寸</label><select id="cat-size"><option value="">full · 原图</option><option value="med">med · 中</option><option value="small">small · 小</option><option value="thumb">thumb · 缩略</option></select></div>
 <div class="field full"><label class="pick"><input type="checkbox" id="cat-hasbreed"> 仅返回带品种信息的图片（has_breeds=1）</label></div>
 </div>
-<div class="cmdrow"><span class="note">每次点击都会重新随机 · 图片由 cdn2.thecatapi.com 直出</span><button type="button" onclick="run('cats')">换一张</button><button type="button" onclick="copyCurl('cats', this)">复制 cURL</button><button type="button" class="primary" onclick="run('cats')">发送请求</button></div>
+<div class="cmdrow"><span class="note">每次点击都会重新随机 · 图片由 cdn2.thecatapi.com 直出</span><button type="button" onclick="run('cats')">换一张</button><button type="button" onclick="copyCode('cats', this)">复制 cURL</button><button type="button" class="primary" onclick="run('cats')">发送请求</button></div>
 <div class="cat-preview empty" id="cat-preview">尚未调用，发送请求后这里显示猫图预览。</div>
 <div class="res-head"><span class="pill" id="pill-cats">尚未调用</span><span class="note" id="meta-cats"></span></div>
 <pre class="result empty" id="res-cats">点击「发送请求」查看响应。</pre>
@@ -427,7 +460,7 @@ details .result{margin-bottom:16px}
 <div class="form-grid">
 <div class="field full"><label for="cat-img-id">图片 ID</label><input id="cat-img-id" placeholder="如：MTY3ODIyMQ，或点下方「用上一张图的 ID」" spellcheck="false"></div>
 </div>
-<div class="cmdrow"><span class="note">ID 只允许字母与数字</span><button type="button" onclick="useLastCatId()">用上一张图的 ID</button><button type="button" onclick="copyCurl('catimage', this)">复制 cURL</button><button type="button" class="primary" onclick="run('catimage')">发送请求</button></div>
+<div class="cmdrow"><span class="note">ID 只允许字母与数字</span><button type="button" onclick="useLastCatId()">用上一张图的 ID</button><button type="button" onclick="copyCode('catimage', this)">复制 cURL</button><button type="button" class="primary" onclick="run('catimage')">发送请求</button></div>
 <div class="cat-preview empty" id="catimg-preview">尚未调用，发送请求后这里显示猫图预览。</div>
 <div class="res-head"><span class="pill" id="pill-catimage">尚未调用</span><span class="note" id="meta-catimage"></span></div>
 <pre class="result empty" id="res-catimage">点击「发送请求」查看响应。</pre>
@@ -440,7 +473,7 @@ details .result{margin-bottom:16px}
 <div class="form-grid">
 <div class="field"><label for="cat-breed-one">品种</label><select id="cat-breed-one"></select></div>
 </div>
-<div class="cmdrow"><span class="note">下拉由 /api/cats/breeds 填充（30 分钟缓存）</span><button type="button" onclick="copyCurl('catbreed', this)">复制 cURL</button><button type="button" class="primary" onclick="run('catbreed')">发送请求</button></div>
+<div class="cmdrow"><span class="note">下拉由 /api/cats/breeds 填充（30 分钟缓存）</span><button type="button" onclick="copyCode('catbreed', this)">复制 cURL</button><button type="button" class="primary" onclick="run('catbreed')">发送请求</button></div>
 <div class="res-head"><span class="pill" id="pill-catbreed">尚未调用</span><span class="note" id="meta-catbreed"></span></div>
 <pre class="result empty" id="res-catbreed">点击「发送请求」查看响应。</pre>
 </div>
@@ -472,7 +505,7 @@ details .result{margin-bottom:16px}
 <div class="field"><label for="dog-breed">品种（留空为不限）</label><select id="dog-breed"></select></div>
 <div class="field"><label for="dog-size">图片尺寸</label><select id="dog-size"><option value="thumb">thumb · 200×200</option><option value="medium" selected>medium · 长边 600</option><option value="large">large · 长边 1200</option><option value="full">full · 原图</option></select></div>
 </div>
-<div class="cmdrow"><span class="note">每次点击都换一张 · 图片由 images.dogapi.dog 直出</span><button type="button" onclick="run('dogs')">换一只</button><button type="button" onclick="copyCurl('dogs', this)">复制 cURL</button><button type="button" class="primary" onclick="run('dogs')">发送请求</button></div>
+<div class="cmdrow"><span class="note">每次点击都换一张 · 图片由 images.dogapi.dog 直出</span><button type="button" onclick="run('dogs')">换一只</button><button type="button" onclick="copyCode('dogs', this)">复制 cURL</button><button type="button" class="primary" onclick="run('dogs')">发送请求</button></div>
 <div class="cat-preview empty" id="dog-preview">尚未调用，发送请求后这里显示狗狗图片与署名。</div>
 <div class="res-head"><span class="pill" id="pill-dogs">尚未调用</span><span class="note" id="meta-dogs"></span></div>
 <pre class="result empty" id="res-dogs">点击「发送请求」查看响应。</pre>
@@ -485,7 +518,7 @@ details .result{margin-bottom:16px}
 <div class="form-grid">
 <div class="field"><label for="dog-breed-one">品种</label><select id="dog-breed-one"></select></div>
 </div>
-<div class="cmdrow"><span class="note">下拉由 /api/dogs/breeds 填充（283 个犬种）</span><button type="button" onclick="copyCurl('dogdetail', this)">复制 cURL</button><button type="button" class="primary" onclick="run('dogdetail')">发送请求</button></div>
+<div class="cmdrow"><span class="note">下拉由 /api/dogs/breeds 填充（283 个犬种）</span><button type="button" onclick="copyCode('dogdetail', this)">复制 cURL</button><button type="button" class="primary" onclick="run('dogdetail')">发送请求</button></div>
 <div class="cat-preview empty" id="dogdetail-preview">尚未调用，发送请求后这里显示该犬种的前几张图。</div>
 <div class="res-head"><span class="pill" id="pill-dogdetail">尚未调用</span><span class="note" id="meta-dogdetail"></span></div>
 <pre class="result empty" id="res-dogdetail">点击「发送请求」查看响应。</pre>
@@ -499,7 +532,7 @@ details .result{margin-bottom:16px}
 <div class="field"><label for="dog-img-breed">品种（留空为随机）</label><select id="dog-img-breed"></select></div>
 <div class="field"><label for="dog-img-size">尺寸</label><select id="dog-img-size"><option value="thumb">thumb</option><option value="medium" selected>medium</option><option value="large">large</option><option value="full">full</option></select></div>
 </div>
-<div class="cmdrow"><span class="note">返回 httpStatus 与 imageUrl</span><button type="button" onclick="copyCurl('dogimage', this)">复制 cURL</button><button type="button" class="primary" onclick="run('dogimage')">发送请求</button></div>
+<div class="cmdrow"><span class="note">返回 httpStatus 与 imageUrl</span><button type="button" onclick="copyCode('dogimage', this)">复制 cURL</button><button type="button" class="primary" onclick="run('dogimage')">发送请求</button></div>
 <div class="cat-preview empty" id="dogimg-preview">尚未调用，发送请求后这里显示解析到的图片。</div>
 <div class="res-head"><span class="pill" id="pill-dogimage">尚未调用</span><span class="note" id="meta-dogimage"></span></div>
 <pre class="result empty" id="res-dogimage">点击「发送请求」查看响应。</pre>
@@ -512,7 +545,7 @@ details .result{margin-bottom:16px}
 <div class="form-grid">
 <div class="field"><label for="dog-fact-limit">条数（1~5）</label><input id="dog-fact-limit" value="3" spellcheck="false"></div>
 </div>
-<div class="cmdrow"><span class="note">不做缓存，连点连新</span><button type="button" onclick="copyCurl('dogfacts', this)">复制 cURL</button><button type="button" class="primary" onclick="run('dogfacts')">发送请求</button></div>
+<div class="cmdrow"><span class="note">不做缓存，连点连新</span><button type="button" onclick="copyCode('dogfacts', this)">复制 cURL</button><button type="button" class="primary" onclick="run('dogfacts')">发送请求</button></div>
 <div class="res-head"><span class="pill" id="pill-dogfacts">尚未调用</span><span class="note" id="meta-dogfacts"></span></div>
 <pre class="result empty" id="res-dogfacts">点击「发送请求」查看响应。</pre>
 </div>
@@ -851,6 +884,88 @@ async function controlStop(btn){
   finally { btn.disabled = false; btn.textContent = old; _ctlSig = ''; paintCtl(await ctlStatus()); }
 }
 
+/* ---------- 请求历史：最近 12 条，点一条回填参数并重放 ---------- */
+var HIST_KEY = 'apihist.v1';
+var HIST_MAX = 12;
+var hist = [];
+
+/* 只收集该卡片自己的表单字段：结果区所在的 .item / details 就是天然的作用域 */
+function histFields(name){
+  var res = $('res-' + name);
+  var scope = res ? res.closest('.item, details') : null;
+  if (!scope) return {};
+  var out = {};
+  scope.querySelectorAll('.form-grid input[id], .form-grid select[id]').forEach(function(el){
+    out[el.id] = el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value;
+  });
+  return out;
+}
+
+function pushHist(name, ms, ok){
+  var sp = SPECS[name];
+  if (!sp) return;
+  hist.unshift({
+    name: name, method: sp.method, path: sp.path().split('?')[0],
+    ms: ms, ok: ok,
+    at: new Date().toLocaleTimeString('zh-CN', { hour12:false }),
+    fields: histFields(name)
+  });
+  if (hist.length > HIST_MAX) hist.length = HIST_MAX;
+  try { sessionStorage.setItem(HIST_KEY, JSON.stringify(hist)); } catch (e) { /* 忽略 */ }
+  paintHist();
+}
+
+function loadHist(){
+  try {
+    var raw = JSON.parse(sessionStorage.getItem(HIST_KEY) || '[]');
+    if (Array.isArray(raw)) hist = raw.filter(function(h){ return h && SPECS[h.name]; });
+  } catch (e) { hist = []; }
+  paintHist();
+}
+
+function paintHist(){
+  var box = $('hist-list'), cnt = $('hist-count');
+  if (cnt) cnt.textContent = hist.length;
+  if (!box) return;
+  if (!hist.length) {
+    box.innerHTML = '<div class="hist-empty">发一次请求后这里记录最近 12 条<br>点任意一条可回填参数并重放</div>';
+    return;
+  }
+  box.innerHTML = '';
+  hist.forEach(function(h, i){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'hist-item' + (h.ok ? '' : ' fail');
+    b.title = h.at + ' · 客户端 ' + h.ms + ' ms · ' + (h.ok ? 'success' : '失败') + ' · 点击重放';
+    var n = document.createElement('span');
+    n.className = 'hn';
+    n.textContent = (h.ok ? '' : '× ') + h.method + ' ' + h.path;
+    var m = document.createElement('span');
+    m.className = 'hm';
+    m.textContent = h.ms >= 1000 ? (h.ms / 1000).toFixed(1) + 's' : h.ms + 'ms';
+    b.appendChild(n); b.appendChild(m);
+    b.addEventListener('click', function(){ histReplay(i); });
+    box.appendChild(b);
+  });
+}
+
+function histReplay(i){
+  var h = hist[i];
+  if (!h || !SPECS[h.name] || inflight[h.name]) return;
+  var f = h.fields || {};
+  // 先恢复类别等主控字段，重建联动下拉后再套依赖它们的值，避免被默认值覆盖
+  Object.keys(f).forEach(function(id){
+    if (id === 'u-from' || id === 'u-to') return;
+    setFieldValue(id, f[id]);
+  });
+  if (f['u-cat']) onCatChange();
+  if (f['u-from']) setFieldValue('u-from', f['u-from']);
+  if (f['u-to']) setFieldValue('u-to', f['u-to']);
+  var res = $('res-' + h.name);
+  if (res) res.scrollIntoView({ behavior:'smooth', block:'center' });
+  run(h.name);
+}
+
 /* ---------- 每个请求各自的「最终结果」区 ---------- */
 function fmt(n){ return (n === null || n === undefined) ? '—' : String(n); }
 
@@ -902,8 +1017,19 @@ function renderFinal(name, json, failure){
   var text = ok ? summarize(name, json.data)
     : (json && json.error) ? (json.error.message || '接口返回失败')
     : (failure || '请求失败');
-  box.textContent = (ok ? '' : '× ') + text;
   box.className = 'final-box' + (ok ? '' : ' fail');
+  box.innerHTML = '';
+  var span = document.createElement('span');
+  span.textContent = (ok ? '' : '× ') + text;
+  box.appendChild(span);
+  // 失败时给一个就地重试：参数仍在表单里，不必再滚回去找按钮
+  if (!ok) {
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'retry'; btn.textContent = '重试';
+    btn.title = '用当前表单里的参数重新发送';
+    btn.addEventListener('click', function(){ run(name); });
+    box.appendChild(btn);
+  }
 }
 
 function summarize(name, d){
@@ -1099,6 +1225,7 @@ async function run(name, silent){
       $('stat-calls').textContent = calls;
       $('stat-last').textContent = clientMs + ' ms';
       var ok = json.success === true;
+      pushHist(name, clientMs, ok);
       pill.textContent = (ok ? '✓ success' : '× error') + ' · HTTP ' + resp.status;
       pill.className = 'pill' + (ok ? ' ok' : '');
       meta.textContent = '服务端 ' + json.elapsedMs + ' ms · 客户端 ' + clientMs + ' ms · ' + json.timestamp;
@@ -1117,6 +1244,7 @@ async function run(name, silent){
     return json;
   } catch (e) {
     if (!silent) {
+      pushHist(name, Math.round(performance.now() - t0), false);
       pill.textContent = '× 请求失败'; pill.className = 'pill';
       meta.textContent = '';
       res.classList.remove('empty');
@@ -1133,11 +1261,111 @@ async function run(name, silent){
   }
 }
 
-function curlText(name){
-  var s = SPECS[name], url = location.origin + s.path();
-  if (s.method === 'POST') {
+/* ---------- 代码片段：一个下拉切换语言，所有卡片共用 ---------- */
+var LANGS = [
+  { id:'curl',   label:'cURL' },
+  { id:'fetch',  label:'fetch' },
+  { id:'pwsh',   label:'PowerShell' },
+  { id:'python', label:'Python' },
+  { id:'csharp', label:'C# HttpClient' }
+];
+var LANG_KEY = 'apicode.lang.v1';
+var codeLang = 'curl';
+
+function initLang(){
+  var sel = $('code-lang');
+  if (sel) {
+    sel.innerHTML = '';
+    LANGS.forEach(function(l){
+      var o = document.createElement('option');
+      o.value = l.id; o.textContent = l.label;
+      sel.appendChild(o);
+    });
+  }
+  try {
+    var saved = localStorage.getItem(LANG_KEY);
+    if (saved && LANGS.some(function(l){ return l.id === saved; })) codeLang = saved;
+  } catch (e) { /* 隐私模式忽略 */ }
+  if (sel) sel.value = codeLang;
+  paintLang();
+}
+
+function setLang(v){
+  if (!LANGS.some(function(l){ return l.id === v; })) return;
+  codeLang = v;
+  try { localStorage.setItem(LANG_KEY, v); } catch (e) { /* 忽略 */ }
+  paintLang();
+}
+
+/* 按钮文案跟着语言变；没调用过的请求不显示语言，只显示「复制代码」 */
+function paintLang(){
+  var label = (LANGS.filter(function(l){ return l.id === codeLang; })[0] || LANGS[0]).label;
+  document.querySelectorAll('button[onclick^="copyCode("]').forEach(function(b){
+    b.textContent = '复制 ' + label;
+  });
+}
+
+/* 单引号字符串转义：PowerShell 用两个单引号，Python 用反斜杠 */
+function psQuote(s){ return String(s).replace(/'/g, "''"); }
+function pyQuote(s){ return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+function codeText(name){
+  var sp = SPECS[name];
+  if (!sp) return '';
+  var url = location.origin + sp.path();
+  var body = sp.body ? sp.body() : null;
+  var bodyJson = body ? JSON.stringify(body) : '';
+  var isPost = sp.method === 'POST';
+
+  if (codeLang === 'fetch') {
+    if (!isPost) {
+      return "fetch('" + url + "')\n  .then(function (r) { return r.json(); })\n  .then(console.log);";
+    }
+    return "fetch('" + url + "', {\n"
+      + "  method: 'POST',\n"
+      + "  headers: { 'Content-Type': 'application/json' },\n"
+      + "  body: JSON.stringify(" + bodyJson + ")\n"
+      + "}).then(function (r) { return r.json(); }).then(console.log);";
+  }
+
+  if (codeLang === 'pwsh') {
+    var pu = psQuote(url);
+    if (!isPost) return "Invoke-RestMethod -Uri '" + pu + "' | ConvertTo-Json -Depth 6";
+    return "Invoke-RestMethod -Uri '" + pu + "' -Method Post `\n"
+      + "  -ContentType 'application/json' `\n"
+      + "  -Body '" + psQuote(bodyJson) + "' | ConvertTo-Json -Depth 6";
+  }
+
+  if (codeLang === 'python') {
+    var yu = pyQuote(url);
+    if (!isPost) {
+      return "import requests\n\nr = requests.get('" + yu + "', timeout=10)\nprint(r.json())";
+    }
+    return "import requests\n\n"
+      + "r = requests.post('" + yu + "',\n"
+      + "    data='" + pyQuote(bodyJson) + "',\n"
+      + "    headers={'Content-Type': 'application/json'},\n"
+      + "    timeout=10)\nprint(r.json())";
+  }
+
+  if (codeLang === 'csharp') {
+    if (!isPost) {
+      return "using System.Net.Http;\n\n"
+        + "using var http = new HttpClient();\n"
+        + "var json = await http.GetStringAsync(\"" + url + "\");\n"
+        + "Console.WriteLine(json);";
+    }
+    return "using System.Net.Http;\nusing System.Text;\n\n"
+      + "using var http = new HttpClient();\n"
+      + "var body = new StringContent(\"" + bodyJson.replace(/"/g, '\\"') + "\", Encoding.UTF8, \"application/json\");\n"
+      + "var resp = await http.PostAsync(\"" + url + "\", body);\n"
+      + "Console.WriteLine(await resp.Content.ReadAsStringAsync());";
+  }
+
+  // cURL（默认）
+  if (isPost) {
     return "curl -X POST '" + url + "' \\\n  -H 'Content-Type: application/json' \\\n  -d '"
-      + JSON.stringify(s.body()) + "'";
+      + bodyJson + "'";
   }
   return "curl '" + url + "'";
 }
@@ -1157,8 +1385,8 @@ async function writeClipboard(text){
   } catch (e) { return false; }
 }
 
-async function copyCurl(name, btn){
-  var text = curlText(name), old = btn ? btn.textContent : '';
+async function copyCode(name, btn){
+  var text = codeText(name), old = btn ? btn.textContent : '';
   if (await writeClipboard(text)) {
     if (btn) { btn.textContent = '已复制'; setTimeout(function(){ btn.textContent = old; }, 1400); }
   } else {
@@ -1198,6 +1426,67 @@ function setExpr(s){
   $('c-expr').value = s;
   run('calc');
 }
+
+/* ---------- 接口清单：关键字过滤 + 按模块快筛 ---------- */
+var epSec = '';
+
+function renderEpChips(){
+  var box = $('ep-chips');
+  if (!box || !window.__index) return;
+  var secs = [];
+  window.__index.forEach(function(e){
+    if (secs.indexOf(e.section) < 0) secs.push(e.section);
+  });
+  box.innerHTML = '';
+  [{ id:'', label:'全部' }].concat(secs.map(function(s){ return { id:s, label:s }; })).forEach(function(it){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = it.label;
+    if (epSec === it.id) b.className = 'on';
+    b.addEventListener('click', function(){ epSec = it.id; renderEpChips(); renderEpTable(); });
+    box.appendChild(b);
+  });
+}
+
+function renderEpTable(){
+  var tb = $('ep-table');
+  if (!tb || !window.__index) return;
+  var kw = ($('ep-q') ? $('ep-q').value : '').trim().toLowerCase();
+  var rows = window.__index.filter(function(e){
+    if (epSec && e.section !== epSec) return false;
+    if (!kw) return true;
+    return (e.method + ' ' + e.path + ' ' + e.section + ' ' + e.description).toLowerCase().indexOf(kw) >= 0;
+  });
+  tb.innerHTML = '';
+  rows.forEach(function(e){
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><b>' + esc(e.method) + '</b></td>'
+      + '<td><span class="path">' + esc(e.path) + '</span></td>'
+      + '<td>' + esc(e.section) + '</td>'
+      + '<td>' + esc(e.description) + '</td>';
+    tb.appendChild(tr);
+  });
+  if (!rows.length) {
+    var none = document.createElement('tr');
+    none.className = 'no-hit';
+    none.innerHTML = '<td colspan="4">没有匹配的接口，换个关键字或点「清空过滤」。</td>';
+    tb.appendChild(none);
+  }
+  var hit = $('ep-hit');
+  if (hit) hit.innerHTML = '<b>' + rows.length + '</b> / ' + window.__index.length;
+}
+
+function clearEpFilter(){
+  epSec = '';
+  var input = $('ep-q');
+  if (input) input.value = '';
+  renderEpChips();
+  renderEpTable();
+}
+
+document.addEventListener('input', function(ev){
+  if (ev.target && ev.target.id === 'ep-q') renderEpTable();
+});
 
 async function initData(){
   var results = await Promise.all([
@@ -1241,17 +1530,9 @@ async function initData(){
   var shiba = window.__dogs.find(function(b){ return b.name === 'Shiba Inu'; });
   fillSelect('dog-breed-one', dogOpts, 'value', 'label', shiba ? shiba.id : (dogOpts[0] && dogOpts[0].value));
 
-  var tb = $('ep-table');
-  tb.innerHTML = '';
-  window.__index.forEach(function(e){
-    var tr = document.createElement('tr');
-    tr.innerHTML = '<td><b>' + esc(e.method) + '</b></td>'
-      + '<td><span class="path">' + esc(e.path) + '</span></td>'
-      + '<td>' + esc(e.section) + '</td>'
-      + '<td>' + esc(e.description) + '</td>';
-    tb.appendChild(tr);
-  });
   $('tb-count').textContent = window.__index.length;
+  renderEpChips();
+  renderEpTable();
 
   if (health) {
     $('stat-endpoints').textContent = health.endpointCount;
@@ -1266,10 +1547,12 @@ async function initData(){
   restoreFields();   // 下拉填充完再套一次记忆参数，避免被默认值覆盖
 }
 
+initLang();
 initCopyJson();
 initFinalBoxes();
 initNav();
 initTop();
+loadHist();
 restoreFields();   // 先把文本输入填回（此时动态下拉还没选项，函数内部会自动跳过）
 initData();
 ctlStatus().then(paintCtl);
