@@ -173,6 +173,42 @@ tr.no-hit td{color:var(--ink3);font-size:12px;padding:16px 13px}
 /* 失败重试：贴在结论块右侧，不额外占一行 */
 .final-box .retry{margin-left:10px;font-size:11px;padding:1px 10px;vertical-align:baseline;border-color:var(--accent-line);color:var(--accent)}
 .final-box .retry:hover:not(:disabled){background:var(--accent);color:#fff;border-color:var(--accent)}
+/* 顶栏上游指示灯：小圆点，亮=正常、灰=退避冷却、无=未知 */
+.up-lights{display:inline-flex;align-items:center;gap:9px;padding:3px 9px;border:1px solid var(--line);border-radius:5px;background:var(--paper)}
+.up{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--ink3);white-space:nowrap}
+.up i{width:6px;height:6px;border-radius:50%;background:var(--line2);border:1px solid var(--line);flex:0 0 auto}
+.up.on{color:var(--ink2)}
+.up.on i{background:var(--accent);border-color:var(--accent)}
+.up.warn{color:var(--ink2)}
+.up.warn i{background:transparent;border-color:var(--ink2);border-style:dashed}
+/* 限流额度条 */
+.lmt{margin-top:10px}
+.lmt-bar{height:6px;border-radius:3px;background:var(--line2);overflow:hidden}
+.lmt-fill{height:100%;width:0;background:var(--accent);transition:width .25s ease}
+.lmt-fill.bad{background:var(--ink3)}
+.lmt-txt{display:block;margin-top:6px;font-size:11.5px;color:var(--ink2);font-variant-numeric:tabular-nums}
+/* SSE 实时日志 */
+.sse-log{margin-top:10px;background:var(--code);border:1px solid var(--line);border-radius:6px;padding:10px 13px;font-family:var(--mono);font-size:11.5px;line-height:1.75;color:#4B555C;max-height:240px;overflow:auto}
+.sse-log.empty{color:var(--ink3);font-family:var(--sans);font-size:12px}
+.sse-row{display:flex;gap:9px;white-space:pre-wrap}
+.sse-row .sn{color:var(--accent);font-weight:600;flex:0 0 auto}
+.sse-row .sv{color:var(--ink);flex:0 0 auto;font-variant-numeric:tabular-nums}
+.sse-row .st{color:var(--ink3);flex:0 0 auto}
+.sse-row.end{color:var(--ink2);font-family:var(--sans)}
+/* 上游状态网格 */
+.up-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:9px;margin:12px 0}
+.up-card{border:1px solid var(--line);border-radius:6px;padding:10px 12px;background:var(--paper)}
+.up-card .n{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:5px}
+.up-card .n i{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:0 0 auto}
+.up-card.warn .n i{background:transparent;border:1px dashed var(--ink2)}
+.up-card .d{font-size:11px;color:var(--ink2);line-height:1.65;word-break:break-word}
+/* 最近请求表：窄列，省空间 */
+.logs-table{font-size:11.5px;min-width:0}
+.logs-table td{padding:6px 10px;font-family:var(--mono);font-size:11px;white-space:nowrap}
+.logs-table td.path{max-width:340px;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono)}
+.logs-table td.bad{color:var(--ink2)}
+.logs-table th{padding:7px 10px}
+@media print{.up-lights,.lmt,.sse-log,.up-grid{display:none!important}}
 .result{margin-top:8px;background:var(--code);border:1px solid var(--line);border-radius:6px;padding:12px 15px;font-family:var(--mono);font-size:11.5px;line-height:1.7;color:#4B555C;max-height:330px;overflow:auto;white-space:pre-wrap;word-break:break-word}
 .result.empty{color:var(--ink3)}
 .j-key{color:var(--accent);font-weight:600}
@@ -210,7 +246,10 @@ details .result{margin-bottom:16px}
 <a href="#sec5"><span>05</span>单位换算与汇率</a>
 <a href="#sec6"><span>06</span>猫咪图片 TheCatAPI</a>
 <a href="#sec7"><span>07</span>狗狗犬种 dogapi.dog</a>
-<a href="#sec8"><span>08</span>响应契约与调用方式</a>
+<a href="#sec9"><span>09</span>开发者工具箱</a>
+<a href="#sec10"><span>10</span>限流与流式</a>
+<a href="#sec11"><span>11</span>运维与契约</a>
+<a href="#sec8"><span>12</span>响应契约与调用方式</a>
 </nav>
 <div class="side-rule"></div>
 <div class="side-block">
@@ -233,7 +272,7 @@ details .result{margin-bottom:16px}
 <header class="masthead">
 <div class="eyebrow">本地服务 · 交互式 API 文档</div>
 <h1>.NET 10 API 调试台</h1>
-<p class="meta">2026-11-13 &nbsp;·&nbsp; Minimal API &nbsp;·&nbsp; 22 个端点 &nbsp;·&nbsp; 零第三方依赖 &nbsp;·&nbsp; 端口 5188</p>
+<p class="meta">2026-11-24 &nbsp;·&nbsp; Minimal API &nbsp;·&nbsp; 34 个端点 &nbsp;·&nbsp; 零第三方依赖 &nbsp;·&nbsp; 端口 5188</p>
 </header>
 
 <div class="notice"><b>所有接口统一返回信封结构</b> <code>{ success, data, error, elapsedMs, timestamp }</code>，参数错误也以 HTTP 200 + <code>error</code> 字段表达。<br>天气优先读取 Open-Meteo 实时观测；上游不可用时自动降级为本地模拟数据，返回值中的 <code>source</code> 会标明 <code>live</code> 或 <code>fallback</code>。猫咪接口走 TheCatAPI，密钥只从本机环境变量或 <code>.env.local</code> 读取（不入库），未配置时自动使用公开匿名额度。狗狗接口走 dogapi.dog，<b>官方免密钥</b>；283 个犬种的索引以仓库内置种子打底、后台按需刷新，冷启动不必等上游 1.8 MB 响应。</div>
@@ -250,6 +289,12 @@ details .result{margin-bottom:16px}
 <span class="lead">共 <b id="tb-count">15</b> 组接口 · 填写参数后点击「发送请求」，输入框内按 Enter 也可发送</span>
 <span class="pill" id="tb-status">连接中…</span>
 <span class="pill" id="svc-status">检测服务中…</span>
+<span class="up-lights" id="up-lights" title="四个上游的连通性，10 秒刷新一次；悬停看详情">
+<span class="up" id="up-weather"><i></i>天气</span>
+<span class="up" id="up-exchange"><i></i>汇率</span>
+<span class="up" id="up-cats"><i></i>猫图</span>
+<span class="up" id="up-dogs"><i></i>犬种</span>
+</span>
 <span class="spacer"></span>
 <button type="button" id="btn-start" onclick="controlStart(this)">启动服务</button>
 <button type="button" id="btn-stop" onclick="controlStop(this)">停止服务</button>
@@ -572,7 +617,145 @@ details .result{margin-bottom:16px}
 <pre class="result empty" id="res-doggroups">点击上方按钮查看响应。</pre>
 </details>
 
-<div class="sec" id="sec8"><span class="num">08</span><h2>响应契约与调用方式</h2><span class="tag">统一包装</span></div>
+<div class="sec" id="sec9"><span class="num">09</span><h2>开发者工具箱</h2><span class="tag">纯本地 · 零上游</span></div>
+
+<div class="item">
+<h3><span class="idx">16</span>批量生成 UUID <span class="note">GET</span></h3>
+<span class="path">GET /api/tools/uuid?count=3&amp;upper=0&amp;hyphen=1</span>
+<div class="why">生成 v4 UUID，一次最多 50 个，可选大写、可选去掉连字符。纯本地计算、不访问网络，所以是整套接口里最快的（微秒级）。</div>
+<div class="form-grid">
+<div class="field"><label for="uuid-count">数量（1~50）</label><input id="uuid-count" value="3" spellcheck="false"></div>
+<div class="field"><label for="uuid-upper">大小写</label><select id="uuid-upper"><option value="0">小写</option><option value="1">大写</option></select></div>
+<div class="field"><label for="uuid-hyphen">连字符</label><select id="uuid-hyphen"><option value="1">保留 8-4-4-4-12</option><option value="0">去掉</option></select></div>
+</div>
+<div class="cmdrow"><span class="note">UUID v4，来自 Guid.NewGuid</span><button type="button" onclick="copyCode('uuid', this)">复制 cURL</button><button type="button" class="primary" onclick="run('uuid')">发送请求</button></div>
+<div class="res-head"><span class="pill" id="pill-uuid">尚未调用</span><span class="note" id="meta-uuid"></span></div>
+<pre class="result empty" id="res-uuid">点击「发送请求」查看响应。</pre>
+</div>
+
+<div class="item">
+<h3><span class="idx">17</span>文本哈希 <span class="note">GET</span></h3>
+<span class="path">GET /api/tools/hash?text=hello&amp;algo=sha256</span>
+<div class="why">计算 md5 / sha1 / sha256 / sha512，同时返回十六进制与 Base64 两种表示，以及输入字节数与摘要位数。常用于校验文件片段、生成缓存键。</div>
+<div class="form-grid">
+<div class="field full"><label for="hash-text">要计算的内容</label><input id="hash-text" value="hello, API Playground" spellcheck="false"></div>
+<div class="field"><label for="hash-algo">算法</label><select id="hash-algo"><option value="sha256">sha256（推荐）</option><option value="sha512">sha512</option><option value="sha1">sha1</option><option value="md5">md5（仅校验用）</option></select></div>
+</div>
+<div class="cmdrow"><span class="note">中文按 UTF-8 编码后计算</span><button type="button" onclick="copyCode('hash', this)">复制 cURL</button><button type="button" class="primary" onclick="run('hash')">发送请求</button></div>
+<div class="res-head"><span class="pill" id="pill-hash">尚未调用</span><span class="note" id="meta-hash"></span></div>
+<pre class="result empty" id="res-hash">点击「发送请求」查看响应。</pre>
+</div>
+
+<div class="item">
+<h3><span class="idx">18</span>Base64 编解码 <span class="note">GET / POST</span></h3>
+<span class="path">GET /api/tools/base64?text=你好&amp;mode=encode</span>
+<div class="why">支持标准 Base64 与 URL 安全变体（<code>+</code>→<code>-</code>、<code>/</code>→<code>_</code>、去掉尾部 <code>=</code>）。解码时会自动补齐长度；结果不是合法 UTF-8 时改回十六进制展示，不会给你一串乱码。</div>
+<div class="form-grid">
+<div class="field full"><label for="b64-text">内容（编码填原文，解码填 Base64）</label><textarea id="b64-text" spellcheck="false">你好，API Playground</textarea></div>
+<div class="field"><label for="b64-mode">模式</label><select id="b64-mode"><option value="encode">encode · 编码</option><option value="decode">decode · 解码</option></select></div>
+<div class="field"><label class="pick"><input type="checkbox" id="b64-urlsafe"> URL 安全变体</label></div>
+</div>
+<div class="cmdrow"><span class="note">POST 时 body 用 { "text": "...", "mode": "encode" }</span><button type="button" onclick="copyCode('b64', this)">复制 cURL</button><button type="button" class="primary" onclick="run('b64')">发送请求</button></div>
+<div class="res-head"><span class="pill" id="pill-b64">尚未调用</span><span class="note" id="meta-b64"></span></div>
+<pre class="result empty" id="res-b64">点击「发送请求」查看响应。</pre>
+</div>
+
+<div class="item">
+<h3><span class="idx">19</span>JSON 格式化 / 压缩 / 校验 <span class="note">POST</span></h3>
+<span class="path">POST /api/tools/json &nbsp;&nbsp; body: { "text": "{\"a\":1}", "mode": "format" }</span>
+<div class="why">三种模式：<code>format</code> 缩进美化、<code>minify</code> 压成一行、<code>validate</code> 只校验不改写。三者都会给出嵌套深度与字节数，压缩模式还会算省下多少字节。中文按原文输出，不会被转成 <code>\uXXXX</code>。</div>
+<div class="chips">
+<button type="button" onclick="setJsonSample('format')">美化示例</button>
+<button type="button" onclick="setJsonSample('minify')">压缩示例</button>
+<button type="button" onclick="setJsonSample('validate')">校验示例</button>
+<button type="button" onclick="setJsonSample('bad')">错误示例：非法 JSON</button>
+</div>
+<div class="form-grid">
+<div class="field full"><label for="json-text">JSON 文本</label><textarea id="json-text" spellcheck="false">{"name":"邓达善","tags":["api","dotnet"],"nested":{"ok":true,"count":3}}</textarea></div>
+<div class="field"><label for="json-mode">模式</label><select id="json-mode"><option value="format">format · 美化</option><option value="minify">minify · 压缩</option><option value="validate">validate · 只校验</option></select></div>
+</div>
+<div class="cmdrow"><span class="note">body 也可直接是一段 JSON 原文，不包 { text: ... } 也行</span><button type="button" onclick="copyCode('jsonfmt', this)">复制 cURL</button><button type="button" class="primary" onclick="run('jsonfmt')">发送请求</button></div>
+<div class="res-head"><span class="pill" id="pill-jsonfmt">尚未调用</span><span class="note" id="meta-jsonfmt"></span></div>
+<pre class="result empty" id="res-jsonfmt">点击「发送请求」查看响应。</pre>
+</div>
+
+<div class="sec" id="sec10"><span class="num">10</span><h2>限流与流式</h2><span class="tag">两种常见服务端模式</span></div>
+
+<div class="item">
+<h3><span class="idx">20</span>令牌桶限流 <span class="note">GET</span></h3>
+<span class="path">GET /api/ratelimit</span>
+<div class="why">按客户端 IP 各持一个令牌桶，容量等于每分钟额度，按时间线性补充。响应头带 <code>X-RateLimit-Limit</code> / <code>X-RateLimit-Remaining</code>，额度耗尽时返回 <b>HTTP 429</b> 与 <code>Retry-After</code>——这是全站唯一会返回非 200 的接口。连点几下就能看到额度掉到 0。</div>
+<div class="form-grid">
+<div class="field"><label>当前额度（每分钟）</label><input id="lmt-limit" value="20（API_RATE_LIMIT 可改）" readonly></div>
+</div>
+<div class="cmdrow"><span class="note">只作用于本端点，不影响其它接口</span><button type="button" onclick="copyCode('ratelimit', this)">复制 cURL</button><button type="button" onclick="run('ratelimit')">连点消耗</button><button type="button" class="primary" onclick="run('ratelimit')">发送请求</button></div>
+<div class="lmt"><div class="lmt-bar"><div class="lmt-fill" id="lmt-fill"></div></div><span class="lmt-txt" id="lmt-txt">尚未调用，额度会在这里显示</span></div>
+<div class="res-head"><span class="pill" id="pill-ratelimit">尚未调用</span><span class="note" id="meta-ratelimit"></span></div>
+<pre class="result empty" id="res-ratelimit">点击「发送请求」查看响应。</pre>
+</div>
+
+<div class="item">
+<h3><span class="idx">21</span>SSE 服务端推送 <span class="note">GET · text/event-stream</span></h3>
+<span class="path">GET /api/stream/ticks?count=6&amp;intervalMs=400</span>
+<div class="why">用 <code>text/event-stream</code> 逐条推送事件，推完主动关闭。与普通接口的区别：响应不是一次性返回，而是每个事件立即到达浏览器（控制器代理已改为逐块 flush，经 5188 也是实时的）。这是日志跟随、进度推送、消息流最常用的做法。</div>
+<div class="form-grid">
+<div class="field"><label for="sse-count">事件数（1~40）</label><input id="sse-count" value="6" spellcheck="false"></div>
+<div class="field"><label for="sse-gap">间隔毫秒（50~2000）</label><input id="sse-gap" value="400" spellcheck="false"></div>
+</div>
+<div class="cmdrow"><span class="note">EventSource 只支持 GET；断开后上游会立刻停止</span><button type="button" onclick="stopSse()">断开</button><button type="button" class="primary" onclick="startSse(this)">开始接收</button></div>
+<div class="sse-log empty" id="sse-log">点「开始接收」，事件会一条条出现在这里。</div>
+</div>
+
+<div class="sec" id="sec11"><span class="num">11</span><h2>运维与契约</h2><span class="tag">状态 · 日志 · 配置 · OpenAPI</span></div>
+
+<div class="item">
+<h3><span class="idx">22</span>四个上游的连通性 <span class="note">GET</span></h3>
+<span class="path">GET /api/upstreams</span>
+<div class="why">分别报天气、汇率、猫图、犬种四个上游的缓存新鲜度、上次失败时间与冷却剩余秒数。页面顶栏那四个小圆点就是它的摘要，每 10 秒刷新一次。<code>coolingDown=true</code> 表示上游刚失败、正在退避，此时请求走缓存或快速失败。</div>
+<div class="up-grid" id="up-grid"><div class="up-card"><div class="n"><i></i>尚未查询</div><div class="d">点下方按钮拉一次</div></div></div>
+<div class="cmdrow"><span class="note">服务启动时会预热这四个上游</span><button type="button" onclick="copyCode('upstreams', this)">复制 cURL</button><button type="button" class="primary" onclick="run('upstreams')">刷新上游状态</button></div>
+<div class="res-head"><span class="pill" id="pill-upstreams">尚未调用</span><span class="note" id="meta-upstreams"></span></div>
+<pre class="result empty" id="res-upstreams">点击「刷新上游状态」查看原始响应。</pre>
+</div>
+
+<div class="item">
+<h3><span class="idx">23</span>最近请求日志 <span class="note">GET</span></h3>
+<span class="path">GET /api/logs?limit=20</span>
+<div class="why">环形缓冲保留最近 256 条（<code>API_LOG_CAPACITY</code> 可调），只记摘要：时间、方法、路径、状态码、耗时。页面里发过的每个请求都会出现在这里——不用切到控制台窗口就能回看刚才发生了什么。</div>
+<div class="form-grid">
+<div class="field"><label for="logs-limit">返回条数（1~256）</label><input id="logs-limit" value="20" spellcheck="false"></div>
+</div>
+<div class="cmdrow"><span class="note">本请求自己也会被记进去</span><button type="button" onclick="copyCode('logs', this)">复制 cURL</button><button type="button" class="primary" onclick="run('logs')">刷新日志</button></div>
+<div class="table-wrap" style="margin-top:12px">
+<table class="logs-table">
+<thead><tr><th style="width:13%">时间</th><th style="width:11%">方法</th><th>路径</th><th style="width:9%">状态</th><th style="width:11%">耗时</th></tr></thead>
+<tbody id="logs-body"><tr class="no-hit"><td colspan="5">尚未调用</td></tr></tbody>
+</table>
+</div>
+<details>
+<summary>原始响应（/api/logs 的 JSON）</summary>
+<div class="res-head"><span class="pill" id="pill-logs">尚未调用</span><span class="note" id="meta-logs"></span></div>
+<pre class="result empty" id="res-logs">点击上方「刷新日志」查看。</pre>
+</details>
+</div>
+
+<div class="item">
+<h3><span class="idx">24</span>当前生效的运行参数 <span class="note">GET</span></h3>
+<span class="path">GET /api/config</span>
+<div class="why">列出限流额度、日志容量、三处缓存 TTL、SSE 事件上限，以及它们对应的环境变量名。改完环境变量重启即可生效，不用重新编译——这也是排查「我设了变量怎么没生效」的第一站。</div>
+<div class="cmdrow"><span class="note">未设置的环境变量显示默认值</span><button type="button" onclick="copyCode('config', this)">复制 cURL</button><button type="button" class="primary" onclick="run('config')">发送请求</button></div>
+<div class="res-head"><span class="pill" id="pill-config">尚未调用</span><span class="note" id="meta-config"></span></div>
+<pre class="result empty" id="res-config">点击「发送请求」查看响应。</pre>
+</div>
+
+<div class="item">
+<h3><span class="idx">25</span>OpenAPI 3.0 文档 <span class="note">GET</span></h3>
+<span class="path">GET /openapi.json</span>
+<div class="why">按接口目录生成的 <code>openapi.json</code>：34 个路由、分组 tags、查询参数说明、POST 请求体示例齐全。可以直接导入 Postman / Insomnia / Apifox，也可以拿来生成客户端代码。它是裸文档、不套统一信封，所以不显示在下面的结果区。</div>
+<div class="cmdrow"><span class="note">经 5188 访问时 servers 会自动填成 5188</span><button type="button" onclick="copyOpenApi(this)">复制文档地址</button><button type="button" class="primary" onclick="window.open('/openapi.json','_blank')">在新标签打开</button></div>
+</div>
+
+<div class="sec" id="sec8"><span class="num">12</span><h2>响应契约与调用方式</h2><span class="tag">统一包装</span></div>
 
 <pre>{
   "success": true,
@@ -691,6 +874,8 @@ function initNav(){
 /* ---------- 调试台：接口定义与请求逻辑 ---------- */
 var $ = function(id){ return document.getElementById(id); };
 var val = function(id){ var e=$(id); return e ? String(e.value).trim() : ''; };
+// 需要逐字保留的输入（哈希、Base64、JSON 原文）不能用 trim，否则首尾空白会改变结果
+var raw = function(id){ var e=$(id); return e ? String(e.value) : ''; };
 var q = function(k,v){ return encodeURIComponent(k)+'='+encodeURIComponent(v); };
 
 var SPECS = {
@@ -730,7 +915,30 @@ var SPECS = {
               var p = [q('limit', val('dog-list-limit') || '20'), q('q', val('dog-q'))];
               if ($('dog-hypo') && $('dog-hypo').checked) p.push(q('hypo', '1'));
               return '/api/dogs/breeds?' + p.join('&'); } },
-  doggroups:{ method:'GET', path:function(){ return '/api/dogs/groups'; } }
+  doggroups:{ method:'GET', path:function(){ return '/api/dogs/groups'; } },
+
+  /* ---- 开发者工具箱（本地计算） ---- */
+  uuid:   { method:'GET', path:function(){
+              var p = [q('count', val('uuid-count') || '1')];
+              if (val('uuid-upper') === '1') p.push(q('upper', '1'));
+              if (val('uuid-hyphen') === '0') p.push(q('hyphen', '0'));
+              return '/api/tools/uuid?' + p.join('&'); } },
+  hash:   { method:'GET', path:function(){ return '/api/tools/hash?' + [q('text', raw('hash-text')), q('algo', val('hash-algo') || 'sha256')].join('&'); } },
+  b64:    { method:'POST', path:function(){ return '/api/tools/base64'; }, body:function(){
+              return { text: raw('b64-text'), mode: val('b64-mode') || 'encode',
+                       urlSafe: ($('b64-urlsafe') && $('b64-urlsafe').checked) ? '1' : '0' }; } },
+  jsonfmt:{ method:'POST', path:function(){ return '/api/tools/json'; }, body:function(){
+              return { text: raw('json-text'), mode: val('json-mode') || 'format' }; } },
+
+  /* ---- 限流与流式 ---- */
+  ratelimit:{ method:'GET', path:function(){ return '/api/ratelimit'; } },
+  // SSE 用 EventSource 单独处理，这里只用来生成代码片段
+  sse:    { method:'GET', path:function(){ return '/api/stream/ticks?' + [q('count', val('sse-count') || '6'), q('intervalMs', val('sse-gap') || '400')].join('&'); } },
+
+  /* ---- 运维 ---- */
+  upstreams:{ method:'GET', path:function(){ return '/api/upstreams'; } },
+  logs:   { method:'GET', path:function(){ return '/api/logs?' + q('limit', val('logs-limit') || '20'); } },
+  config: { method:'GET', path:function(){ return '/api/config'; } }
 };
 
 var calls = 0;
@@ -744,7 +952,8 @@ var ENTER_MAP = {
   't-dt':'tconv', 't-start':'tdiff', 't-end':'tdiff',
   'u-val':'uconv',
   'cat-limit':'cats', 'cat-img-id':'catimage', 'cat-q':'catbreeds', 'cat-list-limit':'catbreeds',
-  'dog-fact-limit':'dogfacts', 'dog-q':'doglist', 'dog-list-limit':'doglist'
+  'dog-fact-limit':'dogfacts', 'dog-q':'doglist', 'dog-list-limit':'doglist',
+  'uuid-count':'uuid', 'hash-text':'hash', 'logs-limit':'logs'
 };
 
 var SAVE_KEY = 'apifields.v1';
@@ -1082,6 +1291,20 @@ function summarize(name, d){
       case 'doggroups': return d.total + ' 个分组 · 共 ' + d.breedTotal + ' 个犬种 · 最大组 '
         + fmt(d.items[0] && d.items[0].nameZh) + ' ' + fmt(d.items[0] && d.items[0].breedCount) + ' 个';
       case 'dogall':    return '犬种索引 ' + d.total + ' 个 · ' + fmt(d.source) + ' · 已用于填充页面下拉';
+      case 'uuid':      return '生成 ' + d.count + ' 个 · ' + (d.items && d.items[0] ? d.items[0] : '—') + (d.upperCase ? ' · 大写' : '');
+      case 'hash':      return fmt(d.algo) + ' · ' + String(fmt(d.hex)).slice(0, 32) + '… · ' + fmt(d.bits) + ' 位 · 输入 ' + fmt(d.inputBytes) + ' 字节';
+      case 'b64':       return fmt(d.mode) + (d.urlSafe ? '（URL 安全）' : '') + ' · ' + String(fmt(d.output)).slice(0, 48) + (d.note ? ' · ' + d.note : '');
+      case 'jsonfmt':   return fmt(d.mode) + ' · ' + fmt(d.inputBytes) + ' → ' + fmt(d.outputBytes) + ' 字节'
+        + ' · 深度 ' + fmt(d.depth) + ' · ' + fmt(d.rootKind)
+        + (d.savedBytes > 0 ? ' · 省 ' + d.savedBytes + ' 字节' : '');
+      case 'ratelimit': return (d.allowed ? '放行' : '已限流') + ' · 剩余 ' + fmt(d.remaining) + ' / ' + fmt(d.limit)
+        + ' · 令牌 ' + fmt(d.tokensLeft) + (d.allowed ? '' : ' · ' + fmt(d.retryAfterSeconds) + ' 秒后恢复');
+      case 'upstreams': return '检查 ' + fmt(d.count) + ' 个上游 · 正常 '
+        + (d.items || []).filter(function(x){ return !x.coolingDown; }).length + ' 个 · 冷却 '
+        + (d.items || []).filter(function(x){ return x.coolingDown; }).length + ' 个';
+      case 'logs':      return '累计 ' + fmt(d.total) + ' 条 · 本次返回 ' + fmt(d.returned) + ' 条（容量 ' + fmt(d.capacity) + '）';
+      case 'config':    return '限流 ' + fmt(d.rateLimitPerMinute) + ' 次/分钟 · 日志 ' + fmt(d.requestLogCapacity)
+        + ' 条 · 天气缓存 ' + fmt(d.weatherCacheSeconds) + ' 秒 · 猫缓存 ' + fmt(d.catBreedsCacheMinutes) + ' 分钟';
       default:        return '已返回结果数据';
     }
   } catch (e) { return '已返回结果数据'; }
@@ -1148,6 +1371,197 @@ function renderDogPreview(name, json){
     cap.textContent = it.label + ' · ' + (it.credit || '来源未标注');
     fig.appendChild(img); fig.appendChild(cap); box.appendChild(fig);
   });
+}
+
+/* ---------- 限流额度条 ---------- */
+function renderLimit(json){
+  var d = json && json.data, fill = $('lmt-fill'), txt = $('lmt-txt');
+  if (!d || !fill || !txt) return;
+  var pct = d.limit ? Math.max(0, Math.min(100, Math.round(d.remaining / d.limit * 100))) : 0;
+  fill.style.width = pct + '%';
+  fill.className = 'lmt-fill' + (d.allowed ? '' : ' bad');
+  txt.textContent = d.allowed
+    ? '剩余 ' + d.remaining + ' / ' + d.limit + ' 次 · 令牌 ' + d.tokensLeft
+      + (d.remaining === 0 ? '（已见底，下一次会返回 429）' : '')
+    : '已触发限流：约 ' + d.retryAfterSeconds + ' 秒后恢复 1 次额度（HTTP 429）';
+}
+
+/* ---------- 上游状态：顶栏四个灯 + 卡片网格 ---------- */
+var UP_IDS = ['up-weather', 'up-exchange', 'up-cats', 'up-dogs'];
+
+function paintUpLights(items){
+  if (!items || !items.length) return;
+  items.forEach(function(it, i){
+    var el = $(UP_IDS[i]);
+    if (!el) return;
+    var cooling = !!it.coolingDown;
+    el.className = 'up' + (cooling ? ' warn' : ' on');
+    el.title = it.name + '\n上游：' + it.upstream
+      + (cooling ? '\n冷却中，剩余 ' + it.cooldownRemainingSeconds + ' 秒' : '\n当前正常')
+      + (it.lastFailureAt ? '\n上次失败：' + String(it.lastFailureAt).slice(0, 19).replace('T', ' ') : '');
+  });
+}
+
+function renderUpGrid(items){
+  var box = $('up-grid');
+  if (!box || !items) return;
+  box.innerHTML = '';
+  items.forEach(function(it){
+    var cooling = !!it.coolingDown;
+    var card = document.createElement('div');
+    card.className = 'up-card' + (cooling ? ' warn' : '');
+
+    var head = document.createElement('div');
+    head.className = 'n';
+    var dot = document.createElement('i');
+    head.appendChild(dot);
+    head.appendChild(document.createTextNode(it.name));
+
+    var body = document.createElement('div');
+    body.className = 'd';
+    var bits = [];
+    if (it.breedsCached !== undefined) bits.push('品种缓存 ' + it.breedsCached + ' 个');
+    if (it.cachedCities !== undefined) bits.push('城市缓存 ' + it.cachedCities + ' 个');
+    if (it.currencies) bits.push('货币 ' + it.currencies + ' 种');
+    if (it.breedsIndexed !== undefined) bits.push('索引 ' + it.breedsIndexed + ' 个 · ' + it.indexSource);
+    if (it.refreshing) bits.push('后台刷新中');
+    if (it.cacheAgeSeconds !== null && it.cacheAgeSeconds !== undefined) bits.push('缓存 ' + it.cacheAgeSeconds + ' 秒前');
+    bits.push(cooling ? '冷却中，剩 ' + it.cooldownRemainingSeconds + ' 秒' : '正常');
+    if (it.lastFailureAt) bits.push('上次失败 ' + String(it.lastFailureAt).slice(11, 19));
+    body.textContent = bits.join(' · ');
+
+    card.appendChild(head);
+    card.appendChild(body);
+    box.appendChild(card);
+  });
+}
+
+function renderUpstreams(json){
+  var d = json && json.data;
+  if (!d) return;
+  renderUpGrid(d.items);
+  paintUpLights(d.items);
+}
+
+/* 顶栏灯独立轮询：不写结果区、不进历史，静默更新 */
+async function refreshUpLights(){
+  try {
+    var r = await fetch('/api/upstreams', { cache:'no-store' });
+    var j = await r.json();
+    if (j && j.success && j.data) {
+      paintUpLights(j.data.items);
+      renderUpGrid(j.data.items);
+    }
+  } catch (e) { /* 服务未就绪时静默 */ }
+}
+
+/* ---------- 最近请求表 ---------- */
+function renderLogs(json){
+  var d = json && json.data, tb = $('logs-body');
+  if (!tb || !d || !d.items) return;
+  tb.innerHTML = '';
+  if (!d.items.length) {
+    tb.innerHTML = '<tr class="no-hit"><td colspan="5">还没有记录。</td></tr>';
+    return;
+  }
+  d.items.forEach(function(it){
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + esc(it.at) + '</td>'
+      + '<td><b>' + esc(it.method) + '</b></td>'
+      + '<td class="path" title="' + esc(it.path) + '">' + esc(it.path) + '</td>'
+      + '<td' + (it.ok ? '' : ' class="bad"') + '>' + it.status + '</td>'
+      + '<td>' + it.ms + ' ms</td>';
+    tb.appendChild(tr);
+  });
+}
+
+/* ---------- SSE：用 EventSource 接流，逐条入列表 ---------- */
+var __es = null;
+
+function stopSse(){
+  if (__es) { __es.close(); __es = null; }
+  var btn = document.querySelector('button[onclick^="startSse("]');
+  if (btn) { btn.disabled = false; btn.textContent = '开始接收'; }
+}
+
+function startSse(btn){
+  var box = $('sse-log');
+  if (!box) return;
+  stopSse();
+  box.className = 'sse-log';
+  box.innerHTML = '';
+
+  var url = SPECS.sse.path();
+  var t0 = performance.now();
+  var es = new EventSource(url);
+  __es = es;
+  if (btn) { btn.disabled = true; btn.textContent = '接收中…'; }
+
+  function finish(note){
+    if (btn) { btn.disabled = false; btn.textContent = '开始接收'; }
+    es.close();
+    if (__es === es) __es = null;
+    var row = document.createElement('div');
+    row.className = 'sse-row end';
+    row.textContent = note + ' · 客户端共等待 ' + Math.round(performance.now() - t0) + ' ms';
+    box.appendChild(row);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  es.addEventListener('tick', function(ev){
+    var d = {};
+    try { d = JSON.parse(ev.data); } catch (e) { /* 忽略无法解析的事件 */ }
+    var row = document.createElement('div');
+    row.className = 'sse-row';
+    row.innerHTML = '<span class="sn">#' + (d.seq == null ? '?' : d.seq) + '</span>'
+      + '<span class="sv">' + (d.value == null ? '—' : d.value) + '</span>'
+      + '<span class="st">' + esc(d.at || '') + ' · 服务端 +' + (d.elapsedMs || 0) + ' ms</span>';
+    box.appendChild(row);
+    box.scrollTop = box.scrollHeight;
+  });
+
+  es.addEventListener('done', function(ev){
+    var d = {};
+    try { d = JSON.parse(ev.data); } catch (e) { /* 忽略 */ }
+    finish('推送结束：共 ' + (d.total || 0) + ' 条事件，服务端已关闭连接');
+  });
+
+  // 服务端正常关流后 EventSource 也会报 error：finish 已把 __es 清空，这里只处理真正的异常
+  es.onerror = function(){
+    if (__es !== es) return;
+    finish('连接中断（上游不可达或主服务未启动）');
+  };
+}
+
+/* ---------- JSON 工具的三个示例 ---------- */
+function setJsonSample(kind){
+  var text = $('json-text'), mode = $('json-mode');
+  if (!text || !mode) return;
+  if (kind === 'bad') {
+    text.value = '{"a": 1, "b": }';
+    mode.value = 'validate';
+  } else if (kind === 'minify') {
+    text.value = '{\n  "name": "邓达善",\n  "tags": ["api", "dotnet"],\n  "nested": { "ok": true, "count": 3 }\n}';
+    mode.value = 'minify';
+  } else if (kind === 'validate') {
+    text.value = '[1, 2, {"deep": [3, 4]}]';
+    mode.value = 'validate';
+  } else {
+    text.value = '{"name":"邓达善","tags":["api","dotnet"],"nested":{"ok":true,"count":3}}';
+    mode.value = 'format';
+  }
+  run('jsonfmt');
+}
+
+/* ---------- OpenAPI：只复制地址，不在结果区渲染裸文档 ---------- */
+async function copyOpenApi(btn){
+  var text = location.origin + '/openapi.json';
+  var old = btn ? btn.textContent : '';
+  if (await writeClipboard(text)) {
+    if (btn) { btn.textContent = '已复制'; setTimeout(function(){ btn.textContent = old; }, 1400); }
+  } else if (btn) {
+    window.prompt('复制失败，请手动复制：', text);
+  }
 }
 
 /* 把最近一次随机图的 ID 填进「按 ID 查图」，没有就先静默取一张 */
@@ -1240,6 +1654,9 @@ async function run(name, silent){
       renderFinal(name, json);
       if (name === 'cats' || name === 'catimage') renderCatPreview(name, json);
       if (name === 'dogs' || name === 'dogimage' || name === 'dogdetail') renderDogPreview(name, json);
+      if (name === 'ratelimit') renderLimit(json);
+      if (name === 'logs') renderLogs(json);
+      if (name === 'upstreams') renderUpstreams(json);
     }
     return json;
   } catch (e) {
@@ -1560,6 +1977,13 @@ ctlStatus().then(paintCtl);
 setInterval(function(){ if (!document.hidden) ctlStatus().then(paintCtl); }, 5000);
 document.addEventListener('visibilitychange', function(){
   if (!document.hidden) ctlStatus().then(paintCtl);
+});
+
+// 顶栏上游灯：12 秒一轮，标签页隐藏时跳过
+refreshUpLights();
+setInterval(function(){ if (!document.hidden) refreshUpLights(); }, 12000);
+document.addEventListener('visibilitychange', function(){
+  if (!document.hidden) refreshUpLights();
 });
 </script>
 </body>

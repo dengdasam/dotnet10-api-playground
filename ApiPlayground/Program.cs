@@ -65,30 +65,51 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-var endpoints = new[]
+// 请求日志：只记 /api 下的调用，一行摘要进环形缓冲（/api/logs 可查）
+app.UseRequestLog();
+
+var endpoints = new EndpointInfo[]
 {
-    new { method = "GET",      path = "/api",                  section = "概览",   description = "接口清单（服务自描述）" },
-    new { method = "GET",      path = "/api/health",           section = "概览",   description = "服务健康与运行时信息" },
-    new { method = "GET",      path = "/api/weather",          section = "天气",   description = "按中文城市名查实时天气（离线自动兜底）" },
-    new { method = "GET",      path = "/api/weather/cities",   section = "天气",   description = "内置中文城市表（经纬度）" },
-    new { method = "GET·POST", path = "/api/calculator",       section = "计算",   description = "数学表达式求值（GET 查询串或 POST JSON 请求体）" },
-    new { method = "POST",     path = "/api/calculator",       section = "计算",   description = "同上，按 POST JSON 计一条，目录与实际路由数一致" },
-    new { method = "GET",      path = "/api/time/now",         section = "时间",   description = "指定时区的当前时间" },
-    new { method = "GET",      path = "/api/time/zones",       section = "时间",   description = "常用时区表" },
-    new { method = "GET",      path = "/api/time/convert",     section = "时间",   description = "跨时区时间换算" },
-    new { method = "GET",      path = "/api/time/diff",        section = "时间",   description = "两个时间之间的差值" },
-    new { method = "GET",      path = "/api/units/categories", section = "换算",   description = "单位类别与单位表（含 14 种货币）" },
-    new { method = "GET",      path = "/api/units/convert",    section = "换算",   description = "长度/重量/温度/数据/速度/面积/体积/时间/汇率换算" },
-    new { method = "GET",      path = "/api/cats/random",      section = "猫咪",   description = "随机猫图（可按品种/数量/尺寸筛选）" },
-    new { method = "GET",      path = "/api/cats/breeds",      section = "猫咪",   description = "TheCatAPI 品种列表（关键字搜索，缓存 30 分钟）" },
-    new { method = "GET",      path = "/api/cats/breeds/{id}", section = "猫咪",   description = "按 4 字母 ID 查单个品种详情" },
-    new { method = "GET",      path = "/api/cats/images/{id}", section = "猫咪",   description = "按图片 ID 查图（命中本地缓存则不请求上游）" },
-    new { method = "GET",      path = "/api/dogs/breeds",      section = "狗狗",   description = "犬种列表（283 个，支持关键字/分组/低敏筛选）" },
-    new { method = "GET",      path = "/api/dogs/breeds/{id}", section = "狗狗",   description = "犬种详情（UUID / 英文名 / 中文名均可）" },
-    new { method = "GET",      path = "/api/dogs/random",      section = "狗狗",   description = "随机犬图（附品种信息与图片署名）" },
-    new { method = "GET",      path = "/api/dogs/image",       section = "狗狗",   description = "解析上游 302 图片地址（可指定犬种/尺寸）" },
-    new { method = "GET",      path = "/api/dogs/facts",       section = "狗狗",   description = "随机狗狗趣闻（上游 no-store，每次不同）" },
-    new { method = "GET",      path = "/api/dogs/groups",      section = "狗狗",   description = "犬种分组统计（AKC 9 组）" },
+    new("GET",      "/api",                  "概览", "接口清单（服务自描述）"),
+    new("GET",      "/api/health",           "概览", "服务健康与运行时信息"),
+    new("GET",      "/api/weather",          "天气", "按中文城市名查实时天气（离线自动兜底）"),
+    new("GET",      "/api/weather/cities",   "天气", "内置中文城市表（经纬度）"),
+    new("GET·POST", "/api/calculator",       "计算", "数学表达式求值（GET 查询串或 POST JSON 请求体）"),
+    new("POST",     "/api/calculator",       "计算", "同上，按 POST JSON 计一条，目录与实际路由数一致"),
+    new("GET",      "/api/time/now",         "时间", "指定时区的当前时间"),
+    new("GET",      "/api/time/zones",       "时间", "常用时区表"),
+    new("GET",      "/api/time/convert",     "时间", "跨时区时间换算"),
+    new("GET",      "/api/time/diff",        "时间", "两个时间之间的差值"),
+    new("GET",      "/api/units/categories", "换算", "单位类别与单位表（含 14 种货币）"),
+    new("GET",      "/api/units/convert",    "换算", "长度/重量/温度/数据/速度/面积/体积/时间/汇率换算"),
+    new("GET",      "/api/cats/random",      "猫咪", "随机猫图（可按品种/数量/尺寸筛选）"),
+    new("GET",      "/api/cats/breeds",      "猫咪", "TheCatAPI 品种列表（关键字搜索，缓存 30 分钟）"),
+    new("GET",      "/api/cats/breeds/{id}", "猫咪", "按 4 字母 ID 查单个品种详情"),
+    new("GET",      "/api/cats/images/{id}", "猫咪", "按图片 ID 查图（命中本地缓存则不请求上游）"),
+    new("GET",      "/api/dogs/breeds",      "狗狗", "犬种列表（283 个，支持关键字/分组/低敏筛选）"),
+    new("GET",      "/api/dogs/breeds/{id}", "狗狗", "犬种详情（UUID / 英文名 / 中文名均可）"),
+    new("GET",      "/api/dogs/random",      "狗狗", "随机犬图（附品种信息与图片署名）"),
+    new("GET",      "/api/dogs/image",       "狗狗", "解析上游 302 图片地址（可指定犬种/尺寸）"),
+    new("GET",      "/api/dogs/facts",       "狗狗", "随机狗狗趣闻（上游 no-store，每次不同）"),
+    new("GET",      "/api/dogs/groups",      "狗狗", "犬种分组统计（AKC 9 组）"),
+
+    // ---- 开发者工具箱：纯本地计算，零上游依赖 ----
+    new("GET",      "/api/tools/uuid",       "工具", "生成 v4 UUID（1~50 个，可选大写/去连字符）"),
+    new("GET",      "/api/tools/hash",       "工具", "文本哈希（md5/sha1/sha256/sha512，十六进制与 Base64）"),
+    new("GET·POST", "/api/tools/base64",     "工具", "Base64 编解码（支持 URL 安全变体）"),
+    new("POST",     "/api/tools/base64",     "工具", "同上，按 POST JSON 计一条，目录与实际路由数一致"),
+    new("GET·POST", "/api/tools/json",       "工具", "JSON 格式化 / 压缩 / 校验（含嵌套深度与字节统计）"),
+    new("POST",     "/api/tools/json",       "工具", "同上，按 POST JSON 计一条，目录与实际路由数一致"),
+
+    // ---- 限流与流式 ----
+    new("GET",      "/api/ratelimit",        "限流", "令牌桶限流演示（按 IP 计数，返回 X-RateLimit-* 头）"),
+    new("GET",      "/api/stream/ticks",     "流式", "SSE 服务端推送（text/event-stream，逐条推送后关闭）"),
+
+    // ---- 运维与契约 ----
+    new("GET",      "/api/upstreams",        "运维", "四个上游的连通性、缓存新鲜度与冷却状态"),
+    new("GET",      "/api/logs",             "运维", "最近请求日志（环形缓冲，含状态码与耗时）"),
+    new("GET",      "/api/config",           "运维", "当前生效的运行参数与环境变量名"),
+    new("GET",      "/openapi.json",         "契约", "OpenAPI 3.0 文档（可直接导入 Postman / Insomnia）"),
 };
 
 // ---------- 概览 ----------
@@ -193,6 +214,191 @@ app.MapGet("/api/dogs/facts", async (string? limit, DogService dogs) =>
 
 app.MapGet("/api/dogs/breeds/{id}", async (string id, DogService dogs) =>
     await ApiWrap.RunAsync(async () => await dogs.BreedAsync(id)));
+
+// ---------- 开发者工具箱（纯本地计算，零上游依赖） ----------
+// 取值顺序：query → body 里的同名字段 → body 原文。
+// 最后一个兜底是为了"直接把一段 JSON 贴进来格式化"这种用法（body 里没有 text 字段时整段就是输入）。
+static async Task<(string? Text, string? Mode, string? UrlSafe)> ReadToolInputAsync(HttpRequest request)
+{
+    var text = request.Query["text"].ToString();
+    var mode = request.Query["mode"].ToString();
+    var urlSafe = request.Query["urlSafe"].ToString();
+
+    if (!request.HasJsonContentType() || request.ContentLength is null or 0)
+        return (Blank(text) ? null : text, Blank(mode) ? null : mode, Blank(urlSafe) ? null : urlSafe);
+
+    using var reader = new StreamReader(request.Body, Encoding.UTF8);
+    var raw = await reader.ReadToEndAsync();
+    if (Blank(raw))
+        return (Blank(text) ? null : text, Blank(mode) ? null : mode, Blank(urlSafe) ? null : urlSafe);
+
+    string? bodyText = null;
+    var hasTextField = false;
+    try
+    {
+        using var doc = JsonDocument.Parse(raw);
+        if (doc.RootElement.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in doc.RootElement.EnumerateObject())
+            {
+                var v = prop.Value.ValueKind == JsonValueKind.String
+                    ? prop.Value.GetString() ?? ""
+                    : prop.Value.GetRawText();
+                if (prop.Name.Equals("text", StringComparison.OrdinalIgnoreCase)) { bodyText = v; hasTextField = true; }
+                else if (prop.Name.Equals("mode", StringComparison.OrdinalIgnoreCase) && Blank(mode)) mode = v;
+                else if (prop.Name.Equals("urlSafe", StringComparison.OrdinalIgnoreCase) && Blank(urlSafe)) urlSafe = v;
+            }
+            // 对象里没有 text 字段：整个 body 原文就是输入
+            if (!hasTextField) bodyText = raw;
+        }
+        else
+        {
+            bodyText = raw;
+        }
+    }
+    catch (JsonException)
+    {
+        throw new ApiException("INVALID_JSON", "请求体不是合法 JSON");
+    }
+
+    return (Blank(text) ? bodyText : text,
+            Blank(mode) ? null : mode,
+            Blank(urlSafe) ? null : urlSafe);
+}
+
+static bool Blank(string? s) => string.IsNullOrWhiteSpace(s);
+
+app.MapGet("/api/tools/uuid", (string? count, string? upper, string? hyphen) =>
+    ApiWrap.Run(() => ToolsService.Uuid(count, upper, hyphen)));
+
+app.MapGet("/api/tools/hash", (string? text, string? algo) =>
+    ApiWrap.Run(() => ToolsService.Hash(text, algo)));
+
+app.MapGet("/api/tools/base64", (string? text, string? mode, string? urlSafe) =>
+    ApiWrap.Run(() => ToolsService.Base64(text, mode, urlSafe)));
+
+app.MapPost("/api/tools/base64", async (HttpRequest request) =>
+    await ApiWrap.RunAsync(async () =>
+    {
+        var input = await ReadToolInputAsync(request);
+        return ToolsService.Base64(input.Text, input.Mode, input.UrlSafe);
+    }));
+
+app.MapGet("/api/tools/json", (string? text, string? mode) =>
+    ApiWrap.Run(() => ToolsService.Json(text, mode)));
+
+app.MapPost("/api/tools/json", async (HttpRequest request) =>
+    await ApiWrap.RunAsync(async () =>
+    {
+        var input = await ReadToolInputAsync(request);
+        return ToolsService.Json(input.Text, input.Mode);
+    }));
+
+// ---------- 限流演示：令牌桶，按客户端 IP 独立计数 ----------
+// 只作用于本端点：全站限流会误伤页面初始化那批并行请求，也会让压测数字失去意义
+app.MapGet("/api/ratelimit", (HttpContext ctx) =>
+{
+    var startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+    var clientKey = ctx.Connection.RemoteIpAddress?.ToString() ?? "local";
+    var decision = RateLimiter.Take(clientKey, AppConfig.RateLimitPerMinute);
+
+    ctx.Response.Headers["X-RateLimit-Limit"] = decision.Limit.ToString();
+    ctx.Response.Headers["X-RateLimit-Remaining"] = decision.Remaining.ToString();
+    if (!decision.Allowed)
+        ctx.Response.Headers["Retry-After"] = Math.Ceiling(decision.RetryAfterSeconds).ToString();
+
+    var data = new
+    {
+        allowed = decision.Allowed,
+        limit = decision.Limit,
+        remaining = decision.Remaining,
+        windowSeconds = 60,
+        tokensLeft = decision.Tokens,
+        retryAfterSeconds = decision.RetryAfterSeconds,
+        clientKey,
+        activeClients = RateLimiter.ActiveClients,
+        note = "令牌桶：容量 = 每分钟额度，按时间线性补充；只作用于本端点，额度可用 API_RATE_LIMIT 调整"
+    };
+
+    return decision.Allowed
+        ? ApiWrap.Raw(true, data, null, startedAt, StatusCodes.Status200OK)
+        : ApiWrap.Raw(false, data,
+            new ApiError("RATE_LIMITED", $"超出额度（{decision.Limit} 次/分钟），请约 {decision.RetryAfterSeconds:0.0} 秒后再试"),
+            startedAt, StatusCodes.Status429TooManyRequests);
+});
+
+// ---------- SSE 流式：逐条推送后主动关闭 ----------
+// 注意：这里不走 ApiWrap，SSE 的载荷是 data: {...} 行而不是信封
+app.MapGet("/api/stream/ticks", async (HttpContext ctx, string? count, string? intervalMs) =>
+{
+    var total = Math.Clamp(int.TryParse(count, out var c) ? c : 6, 1, AppConfig.SseMaxEvents);
+    var gap = Math.Clamp(int.TryParse(intervalMs, out var i) ? i : 400, 50, 2000);
+
+    ctx.Response.StatusCode = StatusCodes.Status200OK;
+    ctx.Response.ContentType = "text/event-stream; charset=utf-8";
+    ctx.Response.Headers.CacheControl = "no-cache";
+    ctx.Response.Headers["X-Accel-Buffering"] = "no";     // 有反向代理时明确要求不缓冲
+    await ctx.Response.Body.FlushAsync();
+
+    var startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+    for (var k = 1; k <= total; k++)
+    {
+        if (ctx.RequestAborted.IsCancellationRequested) return;
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            seq = k,
+            total,
+            value = Math.Round(Random.Shared.NextDouble() * 100, 2),
+            elapsedMs = Math.Round(System.Diagnostics.Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, 1),
+            at = DateTimeOffset.Now.ToString("HH:mm:ss.fff")
+        });
+
+        await ctx.Response.WriteAsync($"id: {k}\nevent: tick\ndata: {payload}\n\n", ctx.RequestAborted);
+        await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+
+        if (k < total) await Task.Delay(gap, ctx.RequestAborted);
+    }
+
+    await ctx.Response.WriteAsync($"event: done\ndata: {{\"total\":{total}}}\n\n", ctx.RequestAborted);
+    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+});
+
+// ---------- 运维：上游状态 / 请求日志 / 生效配置 ----------
+app.MapGet("/api/upstreams", () => ApiWrap.Run(() =>
+{
+    var items = new object[]
+    {
+        WeatherService.UpstreamStatus(),
+        ExchangeRateService.UpstreamStatus(),
+        CatService.UpstreamStatus(),
+        DogService.UpstreamStatus()
+    };
+    return new
+    {
+        checkedAt = DateTimeOffset.Now.ToString("O"),
+        count = items.Length,
+        items,
+        note = "coolingDown=true 表示上游刚失败过、正在退避；此时请求走缓存或快速失败"
+    };
+}));
+
+app.MapGet("/api/logs", (string? limit) =>
+    ApiWrap.Run(() => RequestLog.Snapshot(int.TryParse(limit, out var n) ? n : 30)));
+
+app.MapGet("/api/config", () => ApiWrap.Run(() => AppConfig.Snapshot(listenUrl)));
+
+// ---------- 契约 ----------
+app.MapGet("/openapi.json", (HttpContext ctx) =>
+{
+    // 经控制器访问时用 X-Forwarded-Host，直连时用请求自己的 Host
+    var forwardedHost = ctx.Request.Headers["X-Forwarded-Host"].ToString();
+    var forwardedProto = ctx.Request.Headers["X-Forwarded-Proto"].ToString();
+    var serverUrl = string.IsNullOrWhiteSpace(forwardedHost)
+        ? $"{ctx.Request.Scheme}://{ctx.Request.Host}"
+        : $"{(string.IsNullOrWhiteSpace(forwardedProto) ? "http" : forwardedProto)}://{forwardedHost}";
+    return ApiWrap.Document(OpenApi.Build(endpoints, serverUrl));
+});
 
 // 内部端点：仅供 ServiceController 调用（控制器只转发 /api/*，此路径不对外暴露）
 // 延迟一小段时间再停机，确保本次响应能完整写回，Kestrel 会等在处理完在途请求后退出

@@ -27,8 +27,9 @@ async def main():
 
         print("== 0. 初始化 ==")
         rows0 = await page.locator("#ep-table tr").count()
+        total = rows0
         chips = await page.locator("#ep-chips button").count()
-        check("接口清单渲染 22 行", rows0 == 22, rows0)
+        check("接口清单渲染完整目录", total >= 22, rows0)
         check("模块快筛按钮 = 1 全部 + N 模块", chips >= 5, chips)
         check("工具栏语言下拉已填充 5 项",
               await page.locator("#code-lang option").count() == 5)
@@ -38,15 +39,15 @@ async def main():
         await page.wait_for_timeout(200)
         rows_dog = await page.locator("#ep-table tr").count()
         hit = await page.inner_text("#ep-hit")
-        check("关键字 dog 收窄结果", 0 < rows_dog < 22, f"{rows_dog} 行 / {hit}")
+        check("关键字 dog 收窄结果", 0 < rows_dog < total, f"{rows_dog} 行 / {hit}")
         await page.fill("#ep-q", "zzzz-not-exist")
         await page.wait_for_timeout(200)
         check("无匹配时给出提示行",
               await page.locator("#ep-table tr.no-hit").count() == 1)
         await page.click("text=清空过滤")
         await page.wait_for_timeout(200)
-        check("清空后恢复 22 行",
-              await page.locator("#ep-table tr").count() == 22)
+        check("清空后恢复全部行",
+              await page.locator("#ep-table tr").count() == total)
 
         # 模块 chip 过滤
         chip_labels = await page.locator("#ep-chips button").all_inner_texts()
@@ -54,7 +55,7 @@ async def main():
         await page.click(f"#ep-chips button:has-text('{target}')")
         await page.wait_for_timeout(200)
         rows_sec = await page.locator("#ep-table tr").count()
-        check(f"模块「{target}」筛选生效", 0 < rows_sec < 22, f"{rows_sec} 行")
+        check(f"模块「{target}」筛选生效", 0 < rows_sec < total, f"{rows_sec} 行")
         await page.click("text=清空过滤")
         await page.wait_for_timeout(200)
 

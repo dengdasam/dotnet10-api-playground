@@ -177,6 +177,47 @@ dotnet run --project ServiceController
 | GET | `/api/dogs/image?breed=&size=` | 解析上游 302 图片地址（不自动跟随重定向） |
 | GET | `/api/dogs/facts?limit=1..5` | 随机趣闻，上游 no-store，每次不同 |
 | GET | `/api/dogs/groups` | 犬种分组统计（AKC 9 组，由索引聚合） |
+| GET | `/api/tools/uuid?count=3&upper=0&hyphen=1` | 批量生成 v4 UUID（1~50 个，可选大写 / 去连字符） |
+| GET | `/api/tools/hash?text=&algo=sha256` | 文本哈希：md5 / sha1 / sha256 / sha512，返回十六进制与 Base64 |
+| GET·POST | `/api/tools/base64?text=&mode=encode&urlSafe=0` | Base64 编解码，支持 URL 安全变体；非 UTF-8 结果改回十六进制展示 |
+| GET·POST | `/api/tools/json?text=&mode=format` | JSON 美化 / 压缩 / 校验，返回嵌套深度与字节数 |
+| GET | `/api/ratelimit` | 令牌桶限流演示（按客户端 IP），返回 `X-RateLimit-*` 头；超额时 429 |
+| GET | `/api/stream/ticks?count=6&intervalMs=400` | SSE 服务端推送，`text/event-stream` 逐条发完即关 |
+| GET | `/api/upstreams` | 四个上游的连通性、缓存新鲜度与冷却剩余秒数 |
+| GET | `/api/logs?limit=30` | 最近请求日志（环形缓冲，状态码 / 耗时 / 路径摘要） |
+| GET | `/api/config` | 当前生效的运行参数与对应环境变量名 |
+| GET | `/openapi.json` | OpenAPI 3.0 文档，可直接导入 Postman / Insomnia |
+
+`GET·POST` 的两个工具端点在 `/api` 目录里各占两条（一条组合、一条 POST），因此目录条数 34 与实际注册的路由数一致。POST 时 `text` / `mode` / `urlSafe` 既可放 query，也可放 JSON body；若 body 是一段不带 `text` 字段的 JSON 原文，则整段当作输入（方便直接贴一段 JSON 去格式化）。
+
+### 2026-11-24：套餐 ②＋③ 新增能力
+
+**开发者工具箱**：4 组纯本地计算，零上游、微秒级。哈希走 `SHA256.HashData` 这类静态 API，无对象分配；JSON 工具用 `JsonDocument` 校验后重新序列化，中文保持原文不转义。
+
+**限流**：按客户端 IP 各持一个令牌桶，容量 = 每分钟额度，按时间线性补充。响应头 `X-RateLimit-Limit` / `X-RateLimit-Remaining`，超额时返回 **429**（全站唯一非 200 的接口）并带 `Retry-After`。**只作用于 `/api/ratelimit` 自身**——给全站真实限流会误伤页面初始化那批并行请求，也会让压测数字失去意义。
+
+**SSE 流式**：`/api/stream/ticks` 用 `text/event-stream` 逐条推送 `tick` 事件，最后发 `done` 并主动关闭。控制器代理从 `CopyToAsync` 改成了**按 8KB 块读写 + 每块 FlushAsync**，否则 Kestrel 的内部缓冲会让事件攒到最后一次性刷出来；经 5188 实测每条间隔与 `intervalMs` 一致。
+
+**运维可观测**：
+- `/api/upstreams` 汇总天气 / 汇率 / 猫图 / 犬种四个服务的缓存时点、上次失败与冷却剩余秒数；页面顶栏四个小圆点每 12 秒静默刷新一次。
+- `/api/logs` 由中间件写环形缓冲（默认 256 条，只记一行摘要，不存请求体/响应体）；页面表格可直接回看刚才发过什么。
+- `/openapi.json` 按 `EndpointInfo[]` 目录生成：31 个唯一 path、12 个 tag、查询参数说明与 POST 请求体示例齐全。`X-Forwarded-Host` 让经 5188 访问时 `servers` 自动填成 5188。
+
+**配置外置（改环境变量重启即生效，不用重新编译）**：
+
+| 环境变量 | 作用 | 默认 |
+| --- | --- | --- |
+| `API_URL` | 主服务监听地址 | `http://127.0.0.1:5180` |
+| `API_RATE_LIMIT` | 限流端点每分钟额度 | `20` |
+| `API_LOG_CAPACITY` | 请求日志环形缓冲条数 | `256` |
+| `API_WEATHER_CACHE_SECONDS` | 天气缓存有效期 | `180` |
+| `API_CAT_CACHE_MINUTES` | 猫咪品种缓存有效期 | `30` |
+| `API_DOG_CACHE_DAYS` | 狗狗索引磁盘缓存有效期 | `7` |
+| `API_SSE_MAX_EVENTS` | SSE 单次最多推多少条 | `40` |
+
+`/api/config` 会列出以上所有当前生效值，排查「变量设了没生效」先看它。
+
+> ⚠️ **改过 C# 之后**：控制器拉起的是 `ApiPlayground/bin/Debug/net10.0/ApiPlayground.dll`，而它只在 DLL 缺失时自动 build。所以在窗口里输入 `build`（或手动 `dotnet build ApiPlayground -c Debug`）才能真正加载新代码；只编译 Release 不会生效。
 
 ### 响应契约
 

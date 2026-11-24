@@ -164,4 +164,26 @@ public static class ExchangeRateService
             "内置快照 2026-11-12（非实时）",
             "本地内置参考快照",
             reason + "，已使用内置快照汇率");
+
+    /// <summary>给 /api/upstreams 用：汇率缓存新鲜度与上游冷却状态。</summary>
+    public static object UpstreamStatus()
+    {
+        var cachedAt = _cacheAt == DateTimeOffset.MinValue ? (DateTimeOffset?)null : _cacheAt;
+        var suppressed = DateTimeOffset.UtcNow - _lastFailure < TimeSpan.FromMinutes(2);
+        return new
+        {
+            name = "open.er-api.com 汇率",
+            upstream = "open.er-api.com/v6/latest/USD",
+            cached = _cache is not null,
+            currencies = _cache?.Rates.Count ?? 0,
+            cacheSource = _cache?.Source,
+            cacheDataUpdatedAt = _cache?.UpdatedAt,
+            cacheAgeSeconds = cachedAt is { } at ? (int)(DateTimeOffset.UtcNow - at).TotalSeconds : (int?)null,
+            lastFailureAt = _lastFailure == DateTimeOffset.MinValue ? null : _lastFailure.ToString("O"),
+            coolingDown = suppressed,
+            cooldownRemainingSeconds = suppressed
+                ? (int)Math.Max(0, 120 - (DateTimeOffset.UtcNow - _lastFailure).TotalSeconds)
+                : 0
+        };
+    }
 }

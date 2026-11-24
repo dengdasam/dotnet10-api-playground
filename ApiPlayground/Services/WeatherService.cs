@@ -25,7 +25,7 @@ public sealed class WeatherService
     })
     { Timeout = TimeSpan.FromSeconds(4) };
 
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(3);
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(AppConfig.WeatherCacheSeconds);
 
     private static readonly ConcurrentDictionary<string, CacheEntry> Cache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -313,4 +313,24 @@ public sealed class WeatherService
         96 or 99 => "雷阵雨伴冰雹",
         _ => "未知天气码"
     };
+
+    /// <summary>给 /api/upstreams 用：上游是否在冷却、缓存了多少城市、最近失败时间。</summary>
+    public static object UpstreamStatus()
+    {
+        var entries = Cache.ToArray();
+        DateTimeOffset? newest = entries.Length == 0 ? null : entries.Max(e => e.Value.At);
+        return new
+        {
+            name = "Open-Meteo 天气",
+            upstream = "api.open-meteo.com",
+            cachedCities = entries.Length,
+            newestCacheAt = newest?.ToString("O"),
+            cacheTtlSeconds = AppConfig.WeatherCacheSeconds,
+            lastFailureAt = _lastFailure == DateTimeOffset.MinValue ? null : _lastFailure.ToString("O"),
+            coolingDown = Suppressed,
+            cooldownRemainingSeconds = Suppressed
+                ? (int)Math.Max(0, 120 - (DateTimeOffset.UtcNow - _lastFailure).TotalSeconds)
+                : 0
+        };
+    }
 }

@@ -10,12 +10,13 @@
 │  调试页（静态站点）      │ ─────► │  · 托管页面                   │
 │  启动/停止按钮、状态灯   │ 反代    │  · /control/{start,stop,...}  │
 └─────────────────────────┘        │  · /api/* 反向代理            │
+                                   │  · /openapi.json 转发         │
                                    └──────────────┬───────────────┘
                                                   │ 子进程（关闭窗口即停）
                                                   ▼
                                    ┌──────────────────────────────┐
                                    │  ApiPlayground  :5180        │
-                                   │  Minimal API · 22 个端点      │
+                                   │  Minimal API · 34 个端点      │
                                    └──────────────────────────────┘
 ```
 
@@ -66,6 +67,18 @@
 | GET | `/api/dogs/image?size=large` | 解析上游 302 图片地址 |
 | GET | `/api/dogs/facts?limit=3` | 随机趣闻（上游 no-store，每次不同） |
 | GET | `/api/dogs/groups` | 犬种分组统计（AKC 9 组） |
+| GET | `/api/tools/uuid?count=3` | 批量生成 v4 UUID（1~50 个） |
+| GET | `/api/tools/hash?text=&algo=sha256` | 文本哈希（md5 / sha1 / sha256 / sha512） |
+| GET·POST | `/api/tools/base64?text=&mode=encode` | Base64 编解码（支持 URL 安全变体） |
+| GET·POST | `/api/tools/json?text=&mode=format` | JSON 美化 / 压缩 / 校验 |
+| GET | `/api/ratelimit` | 令牌桶限流演示，按 IP 计数，超额返回 429 |
+| GET | `/api/stream/ticks?count=6&intervalMs=400` | SSE 流式推送（text/event-stream） |
+| GET | `/api/upstreams` | 四个上游的连通性与缓存新鲜度（页面顶栏健康灯的数据源） |
+| GET | `/api/logs?limit=30` | 最近请求日志（环形缓冲，含状态码与耗时） |
+| GET | `/api/config` | 当前生效的运行参数与环境变量名 |
+| GET | `/openapi.json` | OpenAPI 3.0 文档，可导入 Postman / Insomnia |
+
+工具箱端点全部本地计算、零上游；限流只作用于演示端点自身；SSE 经 5188 也是逐条实时到达（控制器代理按块 flush）。运行参数可通过环境变量覆盖，完整清单见 [`ApiPlayground/README.md`](ApiPlayground/README.md) 的「配置外置」表。
 
 汇率走 <https://open.er-api.com> 公开接口（免 Key），以 USD 交叉换算；上游不可用时回落到内置快照，响应里 `provider` / `note` 会标明来源。狗狗接口走 <https://dogapi.dog>（官方免密钥）：283 个犬种的索引以仓库内置种子打底、后台按需刷新，冷启动不必等上游 1.84 MB 响应；图片来自 Wikimedia Commons，请保留 `attribution` 署名。
 
@@ -117,9 +130,13 @@ cp .env.example .env.local
 - **狗狗接口**：dogapi.dog 官方免密钥。上游全量索引 1.84 MB、国内实测 15~40 秒，采用「内存索引 → 内置种子 → 7 天磁盘缓存」三层结构，冷启动毫秒级可用，后台单航班刷新；图片端点原样解析 302 的 `Location`。
 - **单实例保护**：控制器与主服务各按端口加命名互斥体，重复双击只会打开页面，不会崩，也不会两个后端分走请求。
 - **父子联动**：主服务通过 `API_PARENT_PID` 反向监视控制器，控制器被强杀也会自行退出。
-- **反代正确处理 body**：转发前先读成字节数组，避免 POST 丢包。
+- **反代正确处理 body**：转发前先读成字节数组，避免 POST 丢包；响应改为按 8 KB 块转发并逐块 flush，SSE 才能逐条实时到达浏览器。
+- **请求日志中间件**：只记 `/api` 调用的一行摘要，写进固定大小的环形缓冲，不存请求体/响应体；`/api/logs` 可查。
+- **OpenAPI 自生成**：从接口目录直接生成 `/openapi.json`，控制器额外转发该路径，经 5188 访问时 `servers` 自动指向 5188。
 
 实测（keep-alive，p50）：直连 `/api/health` 约 0.28 ms，经代理约 0.37 ms；天气命中缓存 0.33 ms；并发 20 约 3600 req/s（日志开）～4500 req/s（日志关）。
+
+> 注：这组压测数字测于 2026-11-13。之后新增了请求日志中间件与代理逐块 flush，若要引用新数字请用 `bench-local.py` 重测。
 
 ## 目录结构
 

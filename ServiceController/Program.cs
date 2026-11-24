@@ -209,7 +209,8 @@ Func<HttpContext, Task> writeUnavailable = async ctx =>
     });
 };
 
-app.Map("/api/{**rest}", async (HttpContext ctx) =>
+// 业务接口与 OpenAPI 文档共用同一段流式转发逻辑
+RequestDelegate proxyToBackend = async (HttpContext ctx) =>
 {
     // 进程已停止时直接回信封，不必等连接失败（否则会有约 2 秒空等）
     if (!backend.IsRunning)
@@ -220,6 +221,10 @@ app.Map("/api/{**rest}", async (HttpContext ctx) =>
 
     var target = BackendUrl + ctx.Request.Path + ctx.Request.QueryString;
     using var request = new HttpRequestMessage(new HttpMethod(ctx.Request.Method), target);
+
+    // 告诉后端"用户看到的是哪个地址"：/openapi.json 用它生成 servers，直连时后端自己也能拼出来
+    request.Headers.TryAddWithoutValidation("X-Forwarded-Host", ctx.Request.Host.Value);
+    request.Headers.TryAddWithoutValidation("X-Forwarded-Proto", ctx.Request.Scheme);
 
     // 先完整读成 byte[] 再转发：直接把 ctx.Request.Body 交给 StreamContent 会丢 POST 请求体
     if (ctx.Request.ContentLength is > 0 || ctx.Request.Headers.ContainsKey("Transfer-Encoding"))
@@ -241,14 +246,28 @@ app.Map("/api/{**rest}", async (HttpContext ctx) =>
         ctx.Response.StatusCode = (int)response.StatusCode;
         if (response.Content.Headers.ContentType is { } responseType)
             ctx.Response.ContentType = responseType.ToString();
-        await response.Content.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
+
+        // 逐块转发并 flush：/api/stream/ticks 这类 SSE 必须让每个事件立刻到浏览器，
+        // 用 CopyToAsync 会等内部缓冲凑满，页面上表现为"卡住不动然后一次性刷出来"。
+        // 8KB 缓冲对普通小响应也只是一次读写 + 一次 flush，实测开销在噪声内。
+        await using var upstream = await response.Content.ReadAsStreamAsync(ctx.RequestAborted);
+        var buffer = new byte[8192];
+        int read;
+        while ((read = await upstream.ReadAsync(buffer, ctx.RequestAborted)) > 0)
+        {
+            await ctx.Response.Body.WriteAsync(buffer.AsMemory(0, read), ctx.RequestAborted);
+            await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+        }
     }
     catch
     {
         // 进程标记仍在但端口不通时，同样回统一信封
         await writeUnavailable(ctx);
     }
-});
+};
+
+app.Map("/api/{**rest}", proxyToBackend);
+app.Map("/openapi.json", proxyToBackend);   // 文档不在 /api 前缀下，单独挂一条
 
 // 控制器退出时一并结束主服务，避免留下孤儿进程
 app.Lifetime.ApplicationStopping.Register(backend.KillChild);

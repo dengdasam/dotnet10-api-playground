@@ -54,4 +54,19 @@ public static class ApiWrap
         catch (ApiException ex) { return Make(false, null, new ApiError(ex.Code, ex.Message), startedAt); }
         catch (Exception ex) { return Make(false, null, new ApiError("INTERNAL_ERROR", ex.Message), startedAt); }
     }
+
+    /// <summary>
+    /// 需要自定义 HTTP 状态码时用（目前只有限流的 429）：
+    /// 信封结构保持一致，页面照样能按 success / error 解析。
+    /// </summary>
+    public static IResult Raw(bool ok, object? data, ApiError? error, long startedAt, int statusCode)
+        => Results.Json(new ApiEnvelope(
+            ok,
+            data,
+            error,
+            Math.Round(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, 2),
+            DateTimeOffset.Now.ToString("O")), JsonOptions, statusCode: statusCode);
+
+    /// <summary>不经信封、用同一套序列化设置输出文档（/openapi.json 需要裸文档）。</summary>
+    public static IResult Document(object doc) => Results.Json(doc, JsonOptions);
 }

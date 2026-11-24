@@ -28,7 +28,7 @@ public sealed class CatService
     })
     { Timeout = TimeSpan.FromSeconds(6) };
 
-    private static readonly TimeSpan BreedsTtl = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan BreedsTtl = TimeSpan.FromMinutes(AppConfig.CatBreedsCacheMinutes);
     private static readonly TimeSpan FailureCooldown = TimeSpan.FromSeconds(30);
     private static readonly SemaphoreSlim BreedsGate = new(1, 1);
     private static readonly Lazy<KeyInfo> Key = new(ResolveKey);
@@ -94,6 +94,27 @@ public sealed class CatService
             ? "未配置密钥，当前使用公开匿名额度；设置 THECATAPI_KEY 或 .env.local 可提升额度"
             : "密钥已就绪，请求自动附加 x-api-key 头"
     };
+
+    /// <summary>给 /api/upstreams 用：上游连通性、缓存时点、冷却剩余秒数。</summary>
+    public static object UpstreamStatus()
+    {
+        var remaining = InFailureCooldown
+            ? (int)Math.Ceiling((FailureCooldown - (DateTimeOffset.UtcNow - _lastFailure)).TotalSeconds)
+            : 0;
+        return new
+        {
+            name = "TheCatAPI 猫图",
+            upstream = "api.thecatapi.com/v1",
+            keyConfigured = Key.Value.Value is not null,
+            breedsCached = _breeds?.Length ?? 0,
+            breedsCachedAt = _breedsAt == DateTimeOffset.MinValue ? null : _breedsAt.ToString("O"),
+            recentImages = _recent.Length,
+            lastFailureAt = _lastFailure == DateTimeOffset.MinValue ? null : _lastFailure.ToString("O"),
+            lastFailureNote = _lastFailure == DateTimeOffset.MinValue ? null : _failureNote,
+            coolingDown = InFailureCooldown,
+            cooldownRemainingSeconds = remaining
+        };
+    }
 
     /// <summary>随机猫图；可按品种 ID、是否带品种信息、图片尺寸、数量过滤。</summary>
     public async Task<object> RandomAsync(string? limitRaw, string? breed, string? hasBreedsRaw, string? size)

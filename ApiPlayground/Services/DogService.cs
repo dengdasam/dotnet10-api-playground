@@ -35,7 +35,7 @@ public sealed class DogService
 
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private static readonly TimeSpan MemoryTtl = TimeSpan.FromHours(6);
-    private static readonly TimeSpan DiskTtl = TimeSpan.FromDays(7);
+    private static readonly TimeSpan DiskTtl = TimeSpan.FromDays(AppConfig.DogCacheDays);
     private static readonly TimeSpan RefreshAfter = TimeSpan.FromHours(24);
 
     private static volatile DogBreed[]? _breeds;
@@ -298,6 +298,24 @@ public sealed class DogService
         indexSource = _source,
         indexFetchedAt = _breedsAt == DateTimeOffset.MinValue ? null : _breedsAt.ToString("O"),
         note = "官方免密钥；犬种索引为「内置种子 + 7 天磁盘缓存 + 后台单航班刷新」，冷启动不等上游"
+    };
+
+    /// <summary>给 /api/upstreams 用：索引来源、装载时点、是否正在后台刷新。</summary>
+    public static object UpstreamStatus() => new
+    {
+        name = "dogapi.dog 犬种",
+        upstream = "dogapi.dog/v2",
+        keyRequired = false,
+        breedsIndexed = _breeds?.Length ?? 0,
+        indexSource = _source,
+        indexFetchedAt = _breedsAt == DateTimeOffset.MinValue ? null : _breedsAt.ToString("O"),
+        refreshing = Volatile.Read(ref _refreshing) == 1,
+        // 与其余三个上游保持同名字段：页面用一个模板点亮/熄灭指示灯
+        coolingDown = false,
+        lastFailureAt = (string?)null,
+        cooldownRemainingSeconds = 0,
+        cacheDays = AppConfig.DogCacheDays,
+        note = "索引走「内置种子 + 磁盘缓存 + 后台刷新」，上游不可用也能正常出数据"
     };
 
     /// <summary>
