@@ -1,10 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Windows 目标框架：托盘图标来自 WinForms（Microsoft.WindowsDesktop.App，框架自带，零 NuGet） -->
+    <!-- Windows 桌面目标框架：WPF 与托盘图标都来自 Microsoft.WindowsDesktop.App，零 NuGet -->
     <TargetFramework>net10.0-windows</TargetFramework>
     <!-- WinExe：双击不出黑窗口。要命令行的场景传 console 开关（运行时 AllocConsole 再挂一个） -->
     <OutputType>WinExe</OutputType>
+    <!-- 主窗口与所有可见界面均为 WPF（XAML + 自定义控件模板） -->
+    <UseWPF>true</UseWPF>
+    <!-- 仅系统托盘图标复用 WinForms 的 NotifyIcon 类型：无窗口、无控件、不可见。
+         WPF 没有原生托盘控件，用它是为了保持零 NuGet；托盘回退模式也用它。 -->
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -16,6 +20,9 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!-- WPF 与 WinForms 同时启用时，隐式 using 集合不含 System.IO / System.Net.Http，显式补上 -->
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
   </ItemGroup>
 
 </Project>

@@ -276,8 +276,8 @@ public sealed class ConsoleShell(
     private static readonly Regex RequestFinished = new(
         @"^Request finished HTTP/[\d.]+ (\w+) (\S+) - (\d+) - (\S*)\s*([\d.]+)ms$", RegexOptions.Compiled);
 
-    /// <summary>返回要打印的精简文本；null 表示这行不值得显示。</summary>
-    private static string? Compact(string line)
+    /// <summary>返回要打印的精简文本；null 表示这行不值得显示。窗口模式也复用同一套精简规则。</summary>
+    internal static string? Compact(string line)
     {
         var s = line.TrimEnd();
         if (s.Length == 0) return null;

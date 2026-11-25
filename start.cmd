@@ -10,7 +10,7 @@ echo   .NET 10 API Playground - Service Controller (console mode)
 echo   Page: http://127.0.0.1:5188/
 echo   Type "help" in this window for commands.
 echo   Keep this window open. Closing it stops both processes.
-echo   Tip: double-click Start-ApiPlayground.exe for the tray GUI.
+echo   Tip: double-click Start-ApiPlayground.exe for the WPF window GUI.
 echo ==========================================================
 echo.
 

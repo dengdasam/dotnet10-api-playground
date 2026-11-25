@@ -21,7 +21,7 @@
 ```
 
 - **端口 5188**：控制器，对外唯一入口。页面、`/control/*`、`/api/*` 全走它。
-- **端口 5180**：主服务，只监听本机，由控制器拉起与停止。**退出控制器（托盘菜单，或 `--console` 模式关窗口），主服务会一起退出**，不留后台常驻进程。
+- **端口 5180**：主服务，只监听本机，由控制器拉起与停止。**退出控制器（托盘菜单「退出」，或 `--console` 模式关窗口），主服务会一起退出**，不留后台常驻进程；只点主窗口右上角 × 是最小化到托盘，服务继续跑。
 
 ## 快速开始
 
@@ -29,13 +29,16 @@
 
 | 方式 | 命令 | 说明 |
 | --- | --- | --- |
-| **单文件启动器（推荐）** | 双击 `Start-ApiPlayground.exe` | **托盘模式**：不出黑窗口，图标常驻，右键启停/编译/看日志；日志写 `logs/controller-日期.log`。首次需先 `publish.cmd` 生成 |
+| **单文件启动器（推荐）** | 双击 `Start-ApiPlayground.exe` | **WPF 主窗口**：出正常窗口（状态卡 / 按钮排 / 实时日志 / 启动偏好），托盘同时常驻；点 × 最小化到托盘、服务继续跑。日志写 `logs/controller-日期.log`。首次需先 `publish.cmd` 生成 |
 | **命令行模式** | `Start-ApiPlayground.exe --console` | 老式交互窗口，可手打 `start` / `stop` / `build` / `logs` |
+| **纯托盘回退** | `Start-ApiPlayground.exe --tray` | 回到上一版无窗口的托盘模式，右键菜单启停/编译/看日志 |
 | **脚本启动** | `start.cmd`（Windows）/ `./start.sh`（Linux、WSL、macOS） | 已编译则跳过编译，直接秒启（Windows 脚本走命令行模式） |
-| **强制重编译** | `start.cmd build` | 改了 C# 代码后用；托盘模式点菜单「重新编译并重启」等效 |
+| **强制重编译** | `start.cmd build` | 改了 C# 代码后用；主窗口点「重新编译」等效 |
 | **仅主服务** | `cd ApiPlayground && dotnet run` | 不带控制器，页面请直接开 `:5180` |
 
-`publish.cmd` / `publish.sh` 会发布单文件 `Start-ApiPlayground.exe`（framework-dependent，约 240 KB，需本机装 .NET 10 运行时）。
+启动开关：`--no-browser` / `--open-browser` 可临时覆盖窗口里的「启动时自动打开页面」勾选（偏好存 `logs/ui-settings.json`，默认不自动开浏览器）；`--console` / `--tray` 切换界面模式。
+
+`publish.cmd` / `publish.sh` 会发布单文件 `Start-ApiPlayground.exe`（framework-dependent，约 270 KB，需本机装 .NET 10 运行时）。
 
 ## 接口一览
 
@@ -98,19 +101,21 @@ cp .env.example .env.local
 
 服务端按 `THECATAPI_KEY` → 仓库根 `.env.local` 的顺序读取，请求时自动附加 `x-api-key` 头；**密钥不会出现在页面、URL 或响应里**，`/api/health` 只回报是否已配置。`.env.local` 已被 `.gitignore` 排除，请务必不要把它提交到公开仓库。
 
-## 界面：托盘（默认）与命令行（`--console`）
+## 界面：WPF 主窗口（默认）、托盘回退与命令行
 
-双击 `Start-ApiPlayground.exe` 走**托盘模式**：不再弹黑色窗口，任务栏通知区域出现一个状态圆点。
+双击 `Start-ApiPlayground.exe` 走 **WPF 主窗口模式**：正常窗口显示状态卡（绿/灰/红状态圆点、PID、运行时长、两个地址）、按钮排（启动 / 停止 / 重新编译 / 打开页面 / 查看日志 / 日志目录 / 清空 / 复制）、实时日志区，以及「启动时自动打开页面」勾选框；同时任务栏通知区保留托盘圆点。
 
-| 图标颜色 | 含义 |
+| 状态圆点 | 含义 |
 | --- | --- |
 | 绿 | 主服务运行中 |
 | 灰 | 已停止 |
 | 红 | 异常退出（会弹气泡提示退出码与原因） |
 
-右键菜单：**打开调试页**（双击图标等效）、启动服务、停止服务、重新编译并重启、查看日志、打开日志文件夹、退出（同时停止服务）。
+**点右上角 × 只把窗口最小化到托盘，主服务继续运行**；双击托盘图标，或第二次双击 exe（`/control/show`），都会把已有窗口调回前台。托盘菜单「退出（同时停止服务）」才真正停止服务并释放端口。
 
-托盘模式没有窗口，所以**日志全部落文件**：`logs/controller-yyyy-MM-dd.log`（单日上限 8 MB，超过停止写入）。主服务输出、页面触发的启停、状态变化（上线 / 离线及原因）都会记进去——服务半夜掉线也能事后对时点。
+托盘菜单：显示主窗口、打开调试页、启动服务、停止服务、重新编译并重启、查看日志、打开日志文件夹、退出（同时停止服务）。
+
+窗口里的实时日志与 `logs/controller-yyyy-MM-dd.log` 是同一份日志的两个出口（单日上限 8 MB）。主服务输出、页面触发的启停、状态变化（上线 / 离线及原因）都会记进去——窗口最小化后也能事后对时点。按钮「复制」把窗口日志送进剪贴板，「清空」只清窗口视图、不动文件。
 
 需要交互命令时加 `--console`（`start.cmd` 已默认带上），行为与改动前一致：
 
@@ -136,12 +141,12 @@ cp .env.example .env.local
 
 ## 设计要点
 
-- **零 NuGet 依赖**：只用 framework reference；页面是单文件 HTML/CSS/JS，无构建步骤。托盘图标与右键菜单来自框架自带的 WinForms（`Microsoft.WindowsDesktop.App`），同样没有引入任何第三方包。
+- **零 NuGet 依赖**：只用 framework reference；页面是单文件 HTML/CSS/JS，无构建步骤。主窗口为 WPF（XAML + 自定义控件模板），仅托盘图标复用框架自带的 WinForms `NotifyIcon`（无可见窗口/控件），早期错误提示走纯 Win32 消息框，同样没有引入任何第三方包。
 - **天气三级缓存**：按城市缓存 3 分钟 + 单航班（并发同一城市只打一次上游）+ 失败回退旧缓存，响应带 `cached` / `cacheAgeSeconds`。
 - **汇率单航班 + 启动预热**：服务就绪即在后台拉一次汇率，首次换算不再等 1.3 秒。
 - **猫咪接口**：品种列表 30 分钟缓存 + 单航班；最近 20 张图留作上游故障兜底（标 `stale`）；连接超时 2 秒、总超时 6 秒；密钥只从本机环境变量 / `.env.local` 读取。
 - **狗狗接口**：dogapi.dog 官方免密钥。上游全量索引 1.84 MB、国内实测 15~40 秒，采用「内存索引 → 内置种子 → 7 天磁盘缓存」三层结构，冷启动毫秒级可用，后台单航班刷新；图片端点原样解析 302 的 `Location`。
-- **单实例保护**：控制器与主服务各按端口加命名互斥体，重复双击只会打开页面，不会崩，也不会两个后端分走请求。
+- **单实例保护**：控制器与主服务各按端口加命名互斥体，重复双击不会崩，只会把已有实例的主窗口调到前台，也不会两个后端分走请求。
 - **父子联动**：主服务通过 `API_PARENT_PID` 反向监视控制器，控制器被强杀也会自行退出。
 - **反代正确处理 body**：转发前先读成字节数组，避免 POST 丢包；响应改为按 8 KB 块转发并逐块 flush，SSE 才能逐条实时到达浏览器。
 - **请求日志中间件**：只记 `/api` 调用的一行摘要，写进固定大小的环形缓冲，不存请求体/响应体；`/api/logs` 可查。
@@ -164,14 +169,19 @@ cp .env.example .env.local
 │   ├── wwwroot/index.html        # 调试页（双栏文档站，单文件零依赖）
 │   └── README.md                 # 主服务详细文档（接口、缓存、性能）
 ├── ServiceController/            # 控制器（:5188，页面 + 反代 + 进程管理）
-│   ├── Program.cs                # 静态托管、/control/*、/api/* 反代、界面模式分流
+│   ├── Program.cs                # 静态托管、/control/*（含 /control/show）、/api/* 反代、界面模式分流
 │   ├── BackendProcess.cs         # 子进程启停、日志收集、崩溃判定
-│   ├── IControllerUi.cs          # 界面抽象（托盘 / 命令行共用同一套启停逻辑）
-│   ├── TrayShell.cs              # 托盘图标、右键菜单、气泡提示、日志落盘
+│   ├── IControllerUi.cs          # 界面抽象（WPF 窗口 / 托盘 / 命令行共用同一套启停逻辑）
+│   ├── MainWindow.xaml           # WPF 主窗口（冷调文档感：状态卡 / 按钮排 / 实时日志 / 控件模板）
+│   ├── MainWindow.xaml.cs        # 窗口展示与事件转发
+│   ├── WindowShell.cs            # WPF 宿主：Application + Dispatcher + 托盘 + 状态轮询 + 日志回流
+│   ├── UiSettings.cs             # 启动偏好持久化（logs/ui-settings.json）
+│   ├── TrayShell.cs              # 纯托盘回退：图标、右键菜单、气泡提示、日志落盘
+│   ├── NativeMethods.cs          # 纯 Win32 消息框（早期错误提示）
 │   ├── ConsoleHost.cs            # WinExe 下按需挂控制台（--console 回退用）
 │   ├── ConsoleShell.cs           # 窗口交互命令、精简日志渲染
 │   └── ServiceBuild.cs           # 编译封装
-├── logs/                         # 托盘模式日志（controller-yyyy-MM-dd.log，已被忽略）
+├── logs/                         # 控制器日志与启动偏好（已被忽略）
 ├── .env.example                  # 密钥配置示例（占位值，可入库）
 ├── .env.local                    # 本机真实密钥（已被忽略，不入库）
 ├── start.cmd / start.sh          # 一键启动（已编译则跳过编译）

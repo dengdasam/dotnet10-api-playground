@@ -13,10 +13,13 @@ using ServiceController;
 const string ControllerUrl = "http://127.0.0.1:5188";
 const string BackendUrl = "http://127.0.0.1:5180";
 
-// 界面外壳：默认托盘（双击不出黑窗口），加 --console 保留原来的命令行窗口。
+// 界面外壳：默认「主窗口 + 托盘」（双击出正常窗口，点 × 收进托盘）；
+// --console 保留原来的命令行窗口，--tray 可回退到上一版的纯托盘模式。
 // 必须在设置 Console.OutputEncoding 之前挂控制台，否则编码设置打在 Stream.Null 上。
 var consoleMode = args.Any(a => a.Equals("--console", StringComparison.OrdinalIgnoreCase)
                              || a.Equals("-c", StringComparison.OrdinalIgnoreCase));
+var trayMode = args.Any(a => a.Equals("--tray", StringComparison.OrdinalIgnoreCase)
+                          || a.Equals("-t", StringComparison.OrdinalIgnoreCase));
 if (consoleMode) ConsoleHost.TryAttach();
 
 // 控制台窗口里要输出中文，统一按 UTF-8；重定向或无控制台时忽略失败
@@ -75,6 +78,20 @@ static async Task<bool> LooksLikeOursAsync(int port)
     catch { return false; }
 }
 
+// 重复双击 exe 时，通知已经在跑的那个实例把主窗口调到前台。
+// 返回「是否通知成功」以及「那个实例有没有窗口」——命令行/托盘模式没有窗口，需要退化为文字提示。
+static async Task<(bool Reached, bool HasWindow)> AskShowExistingAsync()
+{
+    try
+    {
+        using var http = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(2) };
+        using var response = await http.PostAsync("http://127.0.0.1:5188/control/show", null);
+        var text = await response.Content.ReadAsStringAsync();
+        return (response.IsSuccessStatusCode, text.Contains("\"hasWindow\":true", StringComparison.Ordinal));
+    }
+    catch { return (false, false); }   // 旧版本控制器没有这个端点
+}
+
 // 双击 exe 时窗口一闪而过看不到报错，给一个停顿；被重定向或无控制台时直接跳过
 static void PauseIfInteractive()
 {
@@ -94,41 +111,66 @@ var projectDir = Path.Combine(root, "ApiPlayground");
 var wwwroot = Path.Combine(projectDir, "wwwroot");
 var dll = Path.Combine(projectDir, "bin", "Debug", "net10.0", "ApiPlayground.dll");
 
-// 托盘模式没有窗口，日志必须落文件，否则出问题完全无从查起
+// 窗口模式虽然看得见日志，仍统一落文件：托盘/命令行模式与事后排查都靠它
 var logFile = Path.Combine(root, "logs", $"controller-{DateTime.Now:yyyy-MM-dd}.log");
 
-// 统一输出出口：同时写日志文件与窗口。托盘模式下窗口那句会落进 Stream.Null，等于只写文件
+// 统一输出出口：写日志文件 + 控制台 +（窗口模式下）实时送进主窗口。
+// 窗口在独立 STA 线程里稍后才创建，所以先缓冲；窗口就绪后按原顺序回放，保证早期日志一行不丢。
+var startupLog = new List<string>();
+var sinkGate = new object();
+Action<string>? liveSink = null;
+
 void Say(string text)
 {
     TrayShell.AppendFile(logFile, text);
+    lock (sinkGate)
+    {
+        if (liveSink is not null) liveSink(text);
+        else startupLog.Add(text);
+    }
     try { Console.WriteLine(text); } catch { /* 无控制台 */ }
 }
 
-// 托盘模式没有窗口可看，必须让用户知道的事（端口被占、启动失败）改用对话框
+// 窗口外壳在 UI 线程调用：一个锁里完成「取走早期日志 + 挂上实时出口」，严格保序、不重复。
+Func<Action<string>, IReadOnlyList<string>> connectLog = sink =>
+{
+    lock (sinkGate)
+    {
+        var lines = startupLog.ToArray();
+        startupLog.Clear();
+        liveSink = sink;
+        return lines;
+    }
+};
+
+// 没有窗口时（早期错误、纯托盘/命令行模式）必须让用户知道的事改用系统消息框
 void Alert(string title, string text)
 {
     Say($"[{DateTime.Now:HH:mm:ss}] {title}：{text.Replace(Environment.NewLine, " ")}");
     if (consoleMode) return;
-    try
-    {
-        System.Windows.Forms.MessageBox.Show(
-            text, title, System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Warning);
-    }
+    // 纯 Win32 消息框：此时可能还没有 WPF Application，也不保证主线程是 STA
+    try { NativeMethods.Warn(title, text); }
     catch { /* 没有桌面环境时，至少已经写进日志 */ }
 }
 
-// 命令行开关：--no-browser 不自动打开页面
-var autoOpenBrowser = !args.Any(a => a.Equals("--no-browser", StringComparison.OrdinalIgnoreCase));
+// 启动偏好：默认不自动打开浏览器（已有主窗口，点「打开页面」即可）。
+// 窗口里的勾选框写入 logs/ui-settings.json；命令行开关可临时覆盖。
+var settings = UiSettings.Load(root);
+var forceBrowser = args.Any(a => a.Equals("--open-browser", StringComparison.OrdinalIgnoreCase));
+var noBrowser = args.Any(a => a.Equals("--no-browser", StringComparison.OrdinalIgnoreCase));
+var autoOpenBrowser = forceBrowser || (!noBrowser && settings.AutoOpenBrowser);
+var modeName = consoleMode ? "命令行" : trayMode ? "托盘" : "窗口";
 
-// 把实际收到的参数写进日志：排查"为什么又自己开了浏览器"这类问题全靠这一行
+// 把实际收到的参数写进日志：排查「为什么又自己开了浏览器」这类问题全靠这一行
 Say($"[{DateTime.Now:HH:mm:ss}] 启动参数：{(args.Length == 0 ? "（无）" : string.Join(" ", args))}"
-    + $"｜模式：{(consoleMode ? "命令行" : "托盘")}｜自动打开页面：{(autoOpenBrowser ? "是" : "否")}");
+    + $"｜模式：{modeName}｜自动打开页面：{(autoOpenBrowser ? "是" : "否")}"
+    + $"（配置值 {(settings.AutoOpenBrowser ? "是" : "否")}）");
 
 // ---------- 重复启动保护 ----------
 // 之前重复双击 exe 时，第二个实例会在 Kestrel 绑定时抛 IOException（address already in use），
-// 窗口直接带着英文堆栈崩掉，看起来就像"失败了"。这里改成：复用已在运行的实例，只把页面打开。
+// 窗口直接带着英文堆栈崩掉，看起来就像「失败了」。这里改成：复用已在运行的实例，把窗口唤到前台。
 // 注意判断顺序：先发 HTTP 问一句「你是谁」，再退回端口绑定探测。
-// Windows 上 SO_REUSEADDR 允许两个进程同时绑同一端口，单靠预绑定会误判成"端口空闲"，反而把已在运行的实例挤死。
+// Windows 上 SO_REUSEADDR 允许两个进程同时绑同一端口，单靠预绑定会误判成「端口空闲」，反而把已在运行的实例挤死。
 using var single = new Mutex(initiallyOwned: true, @"Local\ApiPlaygroundController", out var isFirst);
 
 if (!isFirst)
@@ -141,13 +183,17 @@ if (!isFirst)
 if (await LooksLikeOursAsync(5188))
 {
     Say($"[{DateTime.Now:HH:mm:ss}] 检测到已有控制器在运行（端口 5188）。");
-    Say(autoOpenBrowser
-        ? "  本次不再重复启动，已为你打开页面。"
-        : "  本次不再重复启动；托盘图标在**那个**已运行的进程里。");
+    var (reached, hasWindow) = await AskShowExistingAsync();
+    Say(reached
+        ? hasWindow ? "  已通知它把主窗口调到前台，本次不再重复启动。"
+                    : "  已通知它（该实例是命令行/托盘模式，没有主窗口）。"
+        : "  未能通知已有实例（可能是旧版本控制器），本次不再重复启动。");
     Say($"  页面地址：{ControllerUrl}/");
     if (autoOpenBrowser) OpenBrowser(ControllerUrl + "/", Say);
-    // 托盘模式下这一下双击什么窗口都不会出现：没自动开页面时必须给个对话框，否则像"点了没反应"
-    else Alert("控制器已在运行", $"已有控制器在运行（端口 5188）。\n页面地址：{ControllerUrl}/\n托盘图标在那个进程里，双击它会打开页面。");
+    if (!hasWindow && !autoOpenBrowser)
+        Alert("控制器已在运行",
+            $"已有控制器在运行（端口 5188）。\n页面地址：{ControllerUrl}/\n"
+            + "它当前是命令行/托盘模式，没有主窗口；如需窗口界面，请先从托盘菜单退出该实例，再重新双击本程序。");
     if (consoleMode) PauseIfInteractive();
     return 0;
 }
@@ -168,7 +214,7 @@ if (!File.Exists(dll))
     foreach (var line in tail) Say("  " + line);
     Say(built
         ? $"[{DateTime.Now:HH:mm:ss}] 编译完成"
-        : $"[{DateTime.Now:HH:mm:ss}] 编译失败，启动后请在托盘菜单里点「重新编译并重启」");
+        : $"[{DateTime.Now:HH:mm:ss}] 编译失败，启动后请在窗口里点「重新编译」");
     Say("");
 }
 
@@ -207,6 +253,12 @@ app.MapPost("/control/stop", async () =>
     var st = await backend.StopAsync();
     ui?.LogExternal("页面停止完成：" + backend.Message);
     return Results.Json(st);
+});
+// 重复双击 exe 时，第二个实例用这个端点让已有实例把主窗口调到前台
+app.MapPost("/control/show", () =>
+{
+    ui?.ShowWindow();
+    return Results.Json(new { ok = ui is not null, hasWindow = ui?.HasWindow ?? false });
 });
 
 // ---------- 把 /api/* 反向代理到主服务 ----------
@@ -306,17 +358,16 @@ app.Map("/openapi.json", proxyToBackend);   // 文档不在 /api 前缀下，单
 app.Lifetime.ApplicationStopping.Register(backend.KillChild);
 
 // ---------- 界面外壳 ----------
-// 先建外壳再拉起主服务：这样自动启动那一步产生的日志也有明确出口（托盘写文件 / 控制台写窗口）
+// 先建外壳再拉起主服务：这样自动启动那一步产生的日志也有明确出口（窗口/托盘写文件 / 控制台写窗口）
 if (consoleMode)
 {
     var shell = new ConsoleShell(backend, ControllerUrl, () => app.Lifetime.StopApplication(), projectDir, dll);
     ui = shell;
     _ = Task.Run(shell.RunAsync);
 }
-else
+else if (trayMode)
 {
-    // 整个 TrayShell（含 NotifyIcon / 菜单 / 定时器）必须在同一个 STA 线程上创建和使用，
-    // 所以不在主线程 new，而是让工作线程先构造、再进入消息泵。
+    // 纯托盘回退模式：整个 TrayShell（含 NotifyIcon / 菜单 / 定时器）必须在同一个 STA 线程上创建和使用
     TrayShell? tray = null;
     var ready = new ManualResetEventSlim(false);
     var thread = new Thread(() =>
@@ -339,8 +390,34 @@ else
     ready.Wait(5000);
     ui = tray;
 }
+else
+{
+    // 默认：带主窗口的窗体外壳。窗口 + 托盘共用一个 STA 消息泵、一个状态轮询、一份日志出口。
+    WindowShell? window = null;
+    var ready = new ManualResetEventSlim(false);
+    var thread = new Thread(() =>
+    {
+        try
+        {
+            window = new WindowShell(backend, ControllerUrl, root, projectDir, logFile, settings,
+                                     connectLog, () => app.Lifetime.StopApplication());
+            ready.Set();
+            window.Run();
+        }
+        catch (Exception ex)
+        {
+            ready.Set();
+            Say($"[{DateTime.Now:HH:mm:ss}] ✖ 窗口线程异常：{ex.Message}");
+        }
+    })
+    { IsBackground = false, Name = "window-ui" };
+    thread.SetApartmentState(ApartmentState.STA);   // WinForms 要求 STA
+    thread.Start();
+    ready.Wait(5000);
+    ui = window;
+}
 
-// 给一行就绪时间，方便判断「页面什么时候能点」；托盘模式下这行只落日志文件
+// 给一行就绪时间，方便判断「页面什么时候能点」
 app.Lifetime.ApplicationStarted.Register(() =>
     Say($"[{DateTime.Now:HH:mm:ss}] 控制器已就绪（{bootClock.ElapsedMilliseconds} ms），页面 {ControllerUrl}/"));
 
@@ -348,7 +425,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
 // 这里再兜一层：进程退出前尽力杀掉子进程
 AppDomain.CurrentDomain.ProcessExit += (_, _) => backend.KillChild();
 
-// 控制器启动后自动拉起主服务，页面开箱可用；可在页面上或托盘菜单里停止后再启动
+// 控制器启动后自动拉起主服务，页面开箱可用；可在窗口/页面上或托盘菜单里停止后再启动
 _ = Task.Run(async () =>
 {
     try
@@ -358,7 +435,7 @@ _ = Task.Run(async () =>
             ? $"主服务已上线（pid {backend.Pid}）"
             : "主服务启动未成功：" + backend.Message);
 
-        // 主服务就绪后自动打开页面（--no-browser 可关闭）
+        // 默认不自动开浏览器（已有主窗口）；勾选框或 --open-browser 打开时才开
         if (autoOpenBrowser && backend.Running)
         {
             await Task.Delay(400);
@@ -368,7 +445,7 @@ _ = Task.Run(async () =>
     catch (Exception ex) { Say($"[{DateTime.Now:HH:mm:ss}] 自动启动主服务失败：{ex.Message}"); }
 });
 
-// Ctrl+C 先优雅停主服务再退出控制器，避免直接强杀子进程（托盘模式没有控制台，跳过）
+// Ctrl+C 先优雅停主服务再退出控制器，避免直接强杀子进程（窗口/托盘模式没有控制台，跳过）
 if (consoleMode)
 {
     try
@@ -389,7 +466,7 @@ if (consoleMode)
 try
 {
     await app.RunAsync();
-    if (ui is not null) await ui.ShutdownAsync();   // 让托盘图标消失 / 停掉状态轮询
+    if (ui is not null) await ui.ShutdownAsync();   // 让窗口/托盘图标消失 / 停掉状态轮询
     return 0;
 }
 catch (IOException ex)
