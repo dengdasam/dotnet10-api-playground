@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Text;
 using Drawing = System.Drawing;
 using Forms = System.Windows.Forms;
@@ -28,7 +27,6 @@ internal sealed class TrayShell : IControllerUi
     private readonly Forms.ContextMenuStrip _menu = new();
     private readonly Forms.Timer _poll = new() { Interval = 700 };
     private readonly Forms.Control _marshal = new();     // 只为跨线程 BeginInvoke 而存在，从不显示
-    private readonly List<IntPtr> _iconHandles = [];
     private readonly TaskCompletionSource _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Forms.ApplicationContext _ctx = new();
 
@@ -56,9 +54,9 @@ internal sealed class TrayShell : IControllerUi
         try
         {
             _marshal.CreateControl();
-            _icoRunning = MakeIcon(Drawing.Color.FromArgb(46, 125, 79));    // 运行中：绿
-            _icoStopped = MakeIcon(Drawing.Color.FromArgb(154, 165, 171));  // 已停止：灰
-            _icoError = MakeIcon(Drawing.Color.FromArgb(192, 57, 43));      // 异常退出：红
+            _icoRunning = AppIcons.MakeIcon(Drawing.Color.FromArgb(46, 125, 79));    // 运行中：绿
+            _icoStopped = AppIcons.MakeIcon(Drawing.Color.FromArgb(154, 165, 171));  // 已停止：灰
+            _icoError = AppIcons.MakeIcon(Drawing.Color.FromArgb(192, 57, 43));      // 异常退出：红
 
             BuildMenu();
             _tray.Icon = _icoStopped;
@@ -342,33 +340,7 @@ internal sealed class TrayShell : IControllerUi
         catch { /* 资源管理器打不开不影响主流程 */ }
     }
 
-    // ---------- 图标与提示 ----------
-
-    /// <summary>自绘一个圆点图标：绿=运行、灰=停止、红=异常。不能用资源文件，单文件发布更省事。</summary>
-    private Drawing.Icon MakeIcon(Drawing.Color color)
-    {
-        const int size = 32;
-        using var bmp = new Drawing.Bitmap(size, size);
-        using (var g = Drawing.Graphics.FromImage(bmp))
-        {
-            g.SmoothingMode = Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            g.Clear(Drawing.Color.Transparent);
-
-            using var fill = new Drawing.SolidBrush(color);
-            g.FillEllipse(fill, 3, 3, size - 6, size - 6);
-
-            using var ring = new Drawing.Pen(Drawing.Color.FromArgb(70, 0, 0, 0), 2f);
-            g.DrawEllipse(ring, 3, 3, size - 6, size - 6);
-
-            // 中心一个白点：小尺寸下也能看出是个「状态灯」而不是纯色块
-            using var dot = new Drawing.SolidBrush(Drawing.Color.FromArgb(235, 255, 255, 255));
-            g.FillEllipse(dot, size / 2 - 3, size / 2 - 3, 6, 6);
-        }
-
-        var handle = bmp.GetHicon();
-        _iconHandles.Add(handle);          // 句柄由本类负责销毁，Icon.FromHandle 不接管
-        return Drawing.Icon.FromHandle(handle);
-    }
+    // ---------- 提示 ----------
 
     private void Balloon(string title, string text, Forms.ToolTipIcon icon)
     {
@@ -401,12 +373,7 @@ internal sealed class TrayShell : IControllerUi
         try { _tray.Visible = false; _tray.Dispose(); } catch { }
         try { _menu.Dispose(); } catch { }
         try { _marshal.Dispose(); } catch { }
-
-        foreach (var handle in _iconHandles)
-        {
-            try { DestroyIcon(handle); } catch { }
-        }
-        _iconHandles.Clear();
+        AppIcons.Dispose();
     }
 
     // ---------- 日志文件 ----------
@@ -441,8 +408,4 @@ internal sealed class TrayShell : IControllerUi
         : $"{(int)span.TotalSeconds} 秒";
 
     private static string Shorten(string text, int max) => text.Length <= max ? text : text[..max] + "…";
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool DestroyIcon(IntPtr handle);
 }

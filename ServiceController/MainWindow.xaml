@@ -81,29 +81,6 @@
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
-        <ControlTemplate x:Key="ChkTemplate" TargetType="CheckBox">
-            <StackPanel Orientation="Horizontal" Background="Transparent">
-                <Border x:Name="Box" Width="15" Height="15" CornerRadius="3"
-                        Background="#FFFFFF" BorderBrush="#C9D2D8" BorderThickness="1"
-                        VerticalAlignment="Center">
-                    <Path x:Name="Tick" Data="M 2,7 L 6,11 L 12,3"
-                          Stroke="#3B5A6A" StrokeThickness="2"
-                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                          Width="14" Height="14" Stretch="None" Visibility="Collapsed"
-                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </Border>
-                <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center" RecognizesAccessKey="True"/>
-            </StackPanel>
-            <ControlTemplate.Triggers>
-                <Trigger Property="IsChecked" Value="True">
-                    <Setter TargetName="Tick" Property="Visibility" Value="Visible"/>
-                    <Setter TargetName="Box" Property="BorderBrush" Value="#3B5A6A"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Opacity" Value="0.45"/>
-                </Trigger>
-            </ControlTemplate.Triggers>
-        </ControlTemplate>
     </Window.Resources>
 
     <Grid Margin="16">
@@ -130,7 +107,7 @@
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <TextBlock x:Name="StateText" Text="启动中…" FontSize="20" FontWeight="Medium" Foreground="#22272B"/>
                     <TextBlock x:Name="MetaText" Text="正在读取主服务状态…" Foreground="#6B7780" Margin="0,4,0,0"/>
-                    <TextBlock Text="× 关闭窗口 → 最小化到托盘，服务继续运行；托盘菜单「退出」才停止服务"
+                    <TextBlock x:Name="CloseHintText" Text="× 关闭窗口 → 最小化到托盘，服务继续运行；托盘菜单「退出」才停止服务"
                                Foreground="#8A959C" FontSize="11" Margin="0,6,0,0"/>
                 </StackPanel>
 
@@ -156,13 +133,14 @@
             <Button x:Name="BtnFolder" Content="日志目录" Style="{StaticResource Btn}"/>
             <Button x:Name="BtnClear" Content="清空" Style="{StaticResource Btn}"/>
             <Button x:Name="BtnCopy" Content="复制" Style="{StaticResource Btn}"/>
+            <Button x:Name="BtnSettings" Content="设置" Style="{StaticResource Btn}"/>
         </StackPanel>
 
         <Grid Grid.Row="2" Margin="0,0,0,8">
             <TextBlock Text="实时日志" FontWeight="Medium" VerticalAlignment="Center"/>
-            <CheckBox x:Name="ChkAutoOpen" Content="启动时自动打开页面"
-                      HorizontalAlignment="Right" VerticalAlignment="Center"
-                      Foreground="#22272B" Template="{StaticResource ChkTemplate}" Cursor="Hand"/>
+            <TextBlock Text="偏好与关闭行为请点「设置」"
+                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                       Foreground="#8A959C" FontSize="11"/>
         </Grid>
 
         <Border Grid.Row="3" Background="#FFFFFF" BorderBrush="#E2E7EB" BorderThickness="1"

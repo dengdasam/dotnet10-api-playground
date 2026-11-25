@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -36,7 +35,6 @@ internal sealed class WindowShell : IControllerUi
 
     private readonly Forms.ContextMenuStrip _menu = new() { ShowImageMargin = false };
     private readonly TaskCompletionSource _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private readonly List<IntPtr> _iconHandles = [];
     private readonly List<string> _pending = [];
     private readonly object _pendingGate = new();
 
@@ -78,17 +76,16 @@ internal sealed class WindowShell : IControllerUi
     {
         try
         {
-            _appIcon = MakeIcon(PrimaryColor);
-            _icoRunning = MakeIcon(GreenColor);
-            _icoStopped = MakeIcon(GrayColor);
-            _icoError = MakeIcon(RedColor);
+            _appIcon = AppIcons.MakeIcon(PrimaryColor);
+            _icoRunning = AppIcons.MakeIcon(GreenColor);
+            _icoStopped = AppIcons.MakeIcon(GrayColor);
+            _icoError = AppIcons.MakeIcon(RedColor);
 
             _app = new System.Windows.Application { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
             _window = new MainWindow(
                 _controllerUrl + "/",
                 _backend.BackendUrl + "/",
                 _logFile,
-                _settings.AutoOpenBrowser,
                 () => _ = DoStartAsync(),
                 () => _ = DoStopAsync(),
                 () => _ = DoBuildAsync(),
@@ -98,12 +95,8 @@ internal sealed class WindowShell : IControllerUi
                 () => OpenFolder(),
                 () => ClearLog(),
                 () => CopyLog(),
-                value =>
-                {
-                    _settings.AutoOpenBrowser = value;
-                    _settings.Save(_root);
-                    AppendAll($"[{Now}] 启动偏好已保存：启动时自动打开页面 = {(value ? "是" : "否")}（下次启动生效）");
-                });
+                () => OpenSettings());
+            _window.SetCloseHint(_settings.ExitOnClose);
             _window.Icon = IconToSource(_appIcon.Handle);
             _window.Closing += OnClosing;
             _app.MainWindow = _window;
@@ -126,9 +119,10 @@ internal sealed class WindowShell : IControllerUi
             foreach (var line in startup) _window.AppendLog(line);
             foreach (var line in early) _window.AppendLog(line);
 
-            AppendAll($"[{Now}] 主窗口已就绪（WPF）：点右上角 × 会最小化到托盘，主服务继续运行。");
-            AppendAll($"[{Now}] 启动偏好：启动时自动打开页面 = {(_settings.AutoOpenBrowser ? "是" : "否")}"
-                + $"（可在下方勾选框修改，配置文件 {Path.GetFileName(UiSettings.FilePathOf(_root))}）");
+            AppendAll($"[{Now}] 主窗口已就绪（WPF）；点 × 的行为由「设置」决定。");
+            AppendAll($"[{Now}] 启动偏好：自动打开页面 = {(_settings.AutoOpenBrowser ? "是" : "否")}"
+                + $"，关闭窗口 = {(_settings.ExitOnClose ? "退出并停止服务" : "最小化到托盘")}"
+                + $"（可在「设置」中修改，配置文件 {Path.GetFileName(UiSettings.FilePathOf(_root))}）");
             Poll();
 
             _app.Run(_window);      // 阻塞到 Application.Shutdown()
@@ -149,10 +143,57 @@ internal sealed class WindowShell : IControllerUi
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         if (_exiting) return;
-        e.Cancel = true;              // 关窗口 ≠ 退出：只藏到托盘
+        e.Cancel = true;              // 窗口关闭一律先拦下，由下面两种行为之一收尾
+
+        if (_settings.ExitOnClose)
+        {
+            AppendAll($"[{Now}] 关闭窗口：按设置执行「退出并停止服务」…");
+            _ = ExitAsync();          // 停服务 → StopUi() → Application.Shutdown()，窗口随之销毁
+            return;
+        }
+
         _window.Hide();
         AppendAll($"[{Now}] 主窗口已最小化到托盘，主服务继续运行；双击托盘图标可重新打开。");
         Balloon("已最小化到托盘", "主服务继续运行；双击托盘图标可重新打开主窗口。", Forms.ToolTipIcon.Info);
+    }
+
+    /// <summary>主窗口「设置」按钮与托盘菜单共用：模态弹窗，保存后写盘并同步状态卡提示。</summary>
+    private void OpenSettings()
+    {
+        try
+        {
+            var notice = Path.Combine(_projectDir, "assets", "icons", "NOTICE.md");
+            var dlg = new SettingsWindow(_settings.AutoOpenBrowser, _settings.ExitOnClose,
+                                         AppIcons.Credit, notice)
+            {
+                Owner = _window.IsVisible ? _window : null,
+            };
+            if (_appIcon is { } icon) dlg.Icon = IconToSource(icon.Handle);
+
+            if (dlg.ShowDialog() != true)
+            {
+                AppendAll($"[{Now}] 设置：已取消，未修改任何偏好");
+                return;
+            }
+
+            var before = (_settings.AutoOpenBrowser, _settings.ExitOnClose);
+            _settings.AutoOpenBrowser = dlg.AutoOpenBrowser;
+            _settings.ExitOnClose = dlg.ExitOnClose;
+            _settings.Save(_root);
+            _window.SetCloseHint(_settings.ExitOnClose);
+
+            if (before == (_settings.AutoOpenBrowser, _settings.ExitOnClose))
+            {
+                AppendAll($"[{Now}] 设置：值未变化（已保存）");
+                return;
+            }
+            AppendAll($"[{Now}] 设置已保存：自动打开页面 = {(_settings.AutoOpenBrowser ? "是" : "否")}（下次启动生效）"
+                + $"；关闭窗口 = {(_settings.ExitOnClose ? "退出并停止服务" : "最小化到托盘")}（立即生效）");
+        }
+        catch (Exception ex)
+        {
+            AppendAll($"[{Now}] ✖ 打开设置失败：{ex.Message}");
+        }
     }
 
     /// <summary>重复双击 exe 时由 /control/show 调用：把已有实例的窗口调到前台。</summary>
@@ -188,6 +229,7 @@ internal sealed class WindowShell : IControllerUi
             _miStatus,
             new Forms.ToolStripSeparator(),
             miShow,
+            new Forms.ToolStripMenuItem("设置…", null, (_, _) => OpenSettings()),
             new Forms.ToolStripMenuItem("打开调试页", null, (_, _) => OpenPage()),
             new Forms.ToolStripSeparator(),
             _miStart, _miStop, _miBuild,
@@ -476,29 +518,9 @@ internal sealed class WindowShell : IControllerUi
         catch { /* 资源管理器打不开不影响主流程 */ }
     }
 
-    // ---------- 图标、编组、收尾 ----------
+    // ---------- 编组、收尾 ----------
 
-    /// <summary>自绘圆点图标：主色=应用图标，绿=运行、灰=停止、红=异常。不用资源文件，单文件发布更省事。</summary>
-    private Drawing.Icon MakeIcon(Drawing.Color color)
-    {
-        const int size = 32;
-        using var bmp = new Drawing.Bitmap(size, size);
-        using (var g = Drawing.Graphics.FromImage(bmp))
-        {
-            g.SmoothingMode = Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            g.Clear(Drawing.Color.Transparent);
-            using var fill = new Drawing.SolidBrush(color);
-            g.FillEllipse(fill, 3, 3, size - 6, size - 6);
-            using var ring = new Drawing.Pen(Drawing.Color.FromArgb(70, 0, 0, 0), 2f);
-            g.DrawEllipse(ring, 3, 3, size - 6, size - 6);
-            using var dot = new Drawing.SolidBrush(Drawing.Color.FromArgb(235, 255, 255, 255));
-            g.FillEllipse(dot, size / 2 - 3, size / 2 - 3, 6, 6);
-        }
-        var handle = bmp.GetHicon();
-        _iconHandles.Add(handle);
-        return Drawing.Icon.FromHandle(handle);
-    }
-
+    /// <summary>把 GDI+ HICON 转成 WPF 可用的 ImageSource（窗口标题栏图标）。</summary>
     private static ImageSource IconToSource(IntPtr hicon) =>
         System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
             hicon, System.Windows.Int32Rect.Empty,
@@ -540,11 +562,7 @@ internal sealed class WindowShell : IControllerUi
         try { _poll?.Stop(); } catch { }
         try { if (_tray is not null) { _tray.Visible = false; _tray.Dispose(); } } catch { }
         try { _menu.Dispose(); } catch { }
-        foreach (var handle in _iconHandles)
-        {
-            try { DestroyIcon(handle); } catch { }
-        }
-        _iconHandles.Clear();
+        AppIcons.Dispose();
     }
 
     public async Task ShutdownAsync()
@@ -564,8 +582,4 @@ internal sealed class WindowShell : IControllerUi
         : $"{Math.Max(0, (int)span.TotalSeconds)} 秒";
 
     private static string Shorten(string text, int max) => text.Length <= max ? text : text[..max] + "…";
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool DestroyIcon(IntPtr handle);
 }

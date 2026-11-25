@@ -16,7 +16,6 @@ public partial class MainWindow : Window
         string pageUrl,
         string apiUrl,
         string logFile,
-        bool autoOpen,
         Action onStart,
         Action onStop,
         Action onBuild,
@@ -26,7 +25,7 @@ public partial class MainWindow : Window
         Action onOpenFolder,
         Action onClear,
         Action onCopy,
-        Action<bool> onAutoOpenChanged)
+        Action onOpenSettings)
     {
         InitializeComponent();
 
@@ -43,15 +42,16 @@ public partial class MainWindow : Window
         BtnFolder.Click += (_, _) => onOpenFolder();
         BtnClear.Click += (_, _) => onClear();
         BtnCopy.Click += (_, _) => onCopy();
+        BtnSettings.Click += (_, _) => onOpenSettings();
 
         PageLink.MouseLeftButtonUp += (_, _) => onOpenPage();
         ApiLink.MouseLeftButtonUp += (_, _) => onOpenApi();
-
-        // 先赋值再订阅：初始化状态不应被当成用户修改而写盘
-        ChkAutoOpen.IsChecked = autoOpen;
-        ChkAutoOpen.Checked += (_, _) => onAutoOpenChanged(true);
-        ChkAutoOpen.Unchecked += (_, _) => onAutoOpenChanged(false);
     }
+
+    /// <summary>状态卡里的 × 行为说明随设置变化，避免提示与实际行为不一致。</summary>
+    public void SetCloseHint(bool exitOnClose) => CloseHintText.Text = exitOnClose
+        ? "× 关闭窗口 → 退出并停止服务、释放端口（可在「设置」中改回最小化到托盘）"
+        : "× 关闭窗口 → 最小化到托盘，服务继续运行；托盘菜单「退出」才停止服务";
 
     /// <summary>刷新状态卡：圆点颜色、状态标题、副标题、窗口标题。</summary>
     public void SetStatus(string state, string meta, string dotHex)

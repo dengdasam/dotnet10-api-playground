@@ -14,6 +14,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ServiceController</RootNamespace>
     <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- exe 文件图标：开源图标 Lucide plug-zap（ISC），由 tools/make_icon.py 生成 -->
+    <ApplicationIcon>assets\app.ico</ApplicationIcon>
     <!-- 允许在 Linux / macOS 上交叉发布 win-x64（publish.sh 用得到）；Windows 上无副作用 -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
@@ -23,6 +25,8 @@
     <!-- WPF 与 WinForms 同时启用时，隐式 using 集合不含 System.IO / System.Net.Http，显式补上 -->
     <Using Include="System.IO" />
     <Using Include="System.Net.Http" />
+    <!-- 白色线稿：运行时叠上状态色生成托盘三态图标，用 EmbeddedResource 让托盘/命令行回退也能读 -->
+    <EmbeddedResource Include="assets\glyph.png" />
   </ItemGroup>
 
 </Project>

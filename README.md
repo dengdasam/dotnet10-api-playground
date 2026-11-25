@@ -21,7 +21,7 @@
 ```
 
 - **端口 5188**：控制器，对外唯一入口。页面、`/control/*`、`/api/*` 全走它。
-- **端口 5180**：主服务，只监听本机，由控制器拉起与停止。**退出控制器（托盘菜单「退出」，或 `--console` 模式关窗口），主服务会一起退出**，不留后台常驻进程；只点主窗口右上角 × 是最小化到托盘，服务继续跑。
+- **端口 5180**：主服务，只监听本机，由控制器拉起与停止。**退出控制器（托盘菜单「退出」，或 `--console` 模式关窗口），主服务会一起退出**，不留后台常驻进程；点主窗口右上角 × 默认只最小化到托盘、服务继续跑，也可在「设置」里改成「退出并停止服务」。
 
 ## 快速开始
 
@@ -29,16 +29,16 @@
 
 | 方式 | 命令 | 说明 |
 | --- | --- | --- |
-| **单文件启动器（推荐）** | 双击 `Start-ApiPlayground.exe` | **WPF 主窗口**：出正常窗口（状态卡 / 按钮排 / 实时日志 / 启动偏好），托盘同时常驻；点 × 最小化到托盘、服务继续跑。日志写 `logs/controller-日期.log`。首次需先 `publish.cmd` 生成 |
+| **单文件启动器（推荐）** | 双击 `Start-ApiPlayground.exe` | **WPF 主窗口**：出正常窗口（状态卡 / 按钮排 / 实时日志 / 「设置」），托盘同时常驻；点 × 的行为由设置决定（默认最小化到托盘）。日志写 `logs/controller-日期.log`。首次需先 `publish.cmd` 生成 |
 | **命令行模式** | `Start-ApiPlayground.exe --console` | 老式交互窗口，可手打 `start` / `stop` / `build` / `logs` |
 | **纯托盘回退** | `Start-ApiPlayground.exe --tray` | 回到上一版无窗口的托盘模式，右键菜单启停/编译/看日志 |
 | **脚本启动** | `start.cmd`（Windows）/ `./start.sh`（Linux、WSL、macOS） | 已编译则跳过编译，直接秒启（Windows 脚本走命令行模式） |
 | **强制重编译** | `start.cmd build` | 改了 C# 代码后用；主窗口点「重新编译」等效 |
 | **仅主服务** | `cd ApiPlayground && dotnet run` | 不带控制器，页面请直接开 `:5180` |
 
-启动开关：`--no-browser` / `--open-browser` 可临时覆盖窗口里的「启动时自动打开页面」勾选（偏好存 `logs/ui-settings.json`，默认不自动开浏览器）；`--console` / `--tray` 切换界面模式。
+启动开关：`--no-browser` / `--open-browser` 可临时覆盖「设置」里的「启动时自动打开页面」（偏好存 `logs/ui-settings.json`，默认不自动开浏览器）；`--console` / `--tray` 切换界面模式。`--tray` 与 `--console` 没有窗口，关闭行为设置对它们无效。
 
-`publish.cmd` / `publish.sh` 会发布单文件 `Start-ApiPlayground.exe`（framework-dependent，约 270 KB，需本机装 .NET 10 运行时）。
+`publish.cmd` / `publish.sh` 会发布单文件 `Start-ApiPlayground.exe`（framework-dependent，约 340 KB，需本机装 .NET 10 运行时）。
 
 ## 接口一览
 
@@ -103,17 +103,31 @@ cp .env.example .env.local
 
 ## 界面：WPF 主窗口（默认）、托盘回退与命令行
 
-双击 `Start-ApiPlayground.exe` 走 **WPF 主窗口模式**：正常窗口显示状态卡（绿/灰/红状态圆点、PID、运行时长、两个地址）、按钮排（启动 / 停止 / 重新编译 / 打开页面 / 查看日志 / 日志目录 / 清空 / 复制）、实时日志区，以及「启动时自动打开页面」勾选框；同时任务栏通知区保留托盘圆点。
+双击 `Start-ApiPlayground.exe` 走 **WPF 主窗口模式**：正常窗口显示状态卡（绿/灰/红状态圆点、PID、运行时长、两个地址）、按钮排（启动 / 停止 / 重新编译 / 打开页面 / 查看日志 / 日志目录 / 清空 / 复制 / 设置）、实时日志区；同时任务栏通知区保留托盘图标。
 
-| 状态圆点 | 含义 |
+| 状态色 | 含义 |
 | --- | --- |
 | 绿 | 主服务运行中 |
 | 灰 | 已停止 |
 | 红 | 异常退出（会弹气泡提示退出码与原因） |
 
-**点右上角 × 只把窗口最小化到托盘，主服务继续运行**；双击托盘图标，或第二次双击 exe（`/control/show`），都会把已有窗口调回前台。托盘菜单「退出（同时停止服务）」才真正停止服务并释放端口。
+状态卡的圆点与托盘图标共用这组状态色。托盘图标是应用图标的**同一个图形**（开源 Lucide `plug-zap`），只换底色；exe 文件图标与窗口标题栏用深靛底。
 
-托盘菜单：显示主窗口、打开调试页、启动服务、停止服务、重新编译并重启、查看日志、打开日志文件夹、退出（同时停止服务）。
+### 设置弹窗
+
+点主窗口「设置」或托盘菜单「设置…」打开，三项分卡片：
+
+| 分组 | 设置项 | 说明 |
+| --- | --- | --- |
+| 启动 | 启动时自动打开浏览器调试页 | 默认关；`--open-browser` / `--no-browser` 可临时覆盖，下次启动生效 |
+| 关闭窗口 | 最小化到托盘，服务继续运行（默认） / 退出并停止服务，释放 5188 / 5180 端口 | 点右上角 × 时的行为，**保存后立即生效** |
+| 关于 | 图标来源与许可、查看许可文件 | 见下节 |
+
+设置写入 `logs/ui-settings.json`（已被忽略）。旧配置文件没有 `ExitOnClose` 字段时自动按「最小化到托盘」处理。状态卡里的 × 行为提示会随设置同步变化，不会出现「提示与实际行为不一致」。
+
+**点 × 的两种行为**：默认只把窗口隐藏到托盘、主服务继续运行；改成「退出并停止服务」后，点 × 会优雅停止主服务、释放端口并退出控制器。托盘菜单「退出（同时停止服务）」始终执行后者。
+
+托盘菜单：显示主窗口、设置…、打开调试页、启动服务、停止服务、重新编译并重启、查看日志、打开日志文件夹、退出（同时停止服务）。双击托盘图标，或第二次双击 exe（`/control/show`），都会把已有窗口调回前台。
 
 窗口里的实时日志与 `logs/controller-yyyy-MM-dd.log` 是同一份日志的两个出口（单日上限 8 MB）。主服务输出、页面触发的启停、状态变化（上线 / 离线及原因）都会记进去——窗口最小化后也能事后对时点。按钮「复制」把窗口日志送进剪贴板，「清空」只清窗口视图、不动文件。
 
@@ -139,9 +153,24 @@ cp .env.example .env.local
 
 只保留「监听 / 启停 / 每请求一行结果 / 告警」四类，`Request starting`、`Hosting environment`、序列化细节、`/_internal/*` 统一隐藏。
 
+### 图标与许可
+
+exe 文件图标、窗口标题栏、托盘三态都用同一个开源图形：**Lucide `plug-zap`**（ISC 许可，经 [Iconify](https://iconify.design) 获取）。本项目只做白色重涂与纯色圆角底合成，许可不变；完整 ISC 文本见 `ServiceController/assets/icons/NOTICE.md`。设置弹窗「关于」里也标了图标署名，并可直接打开许可文件。
+
+| 文件 | 用途 |
+| --- | --- |
+| `ServiceController/assets/icons/plug-zap.svg` | vendored 源 SVG（24×24，stroke 2） |
+| `ServiceController/assets/icons/plug-zap-small.svg` | 16–32px 加粗变体（stroke 3），小尺寸不糊 |
+| `ServiceController/assets/icons/NOTICE.md` | ISC 许可全文与来源 |
+| `ServiceController/assets/app.ico` | 多尺寸 16–256，csproj `ApplicationIcon` → exe 文件图标 |
+| `ServiceController/assets/glyph.png` | 白色线稿，嵌入程序集，运行时合成托盘三态 |
+| `tools/make_icon.py` | Playwright 栅格化 → Pillow 合成，可重复生成 |
+
+重新生成：`python tools/make_icon.py`（需 Pillow + Playwright + Chromium）。运行时由 `AppIcons.MakeIcon(color)` 画圆角底并叠线稿：深靛 = 应用，绿 / 灰 / 红 = 托盘运行中 / 已停止 / 异常。全程零运行时下载、零 NuGet。
+
 ## 设计要点
 
-- **零 NuGet 依赖**：只用 framework reference；页面是单文件 HTML/CSS/JS，无构建步骤。主窗口为 WPF（XAML + 自定义控件模板），仅托盘图标复用框架自带的 WinForms `NotifyIcon`（无可见窗口/控件），早期错误提示走纯 Win32 消息框，同样没有引入任何第三方包。
+- **零 NuGet 依赖**：只用 framework reference；页面是单文件 HTML/CSS/JS，无构建步骤。主窗口与设置弹窗均为 WPF（XAML + 自定义控件模板），仅系统托盘图标复用框架自带的 WinForms `NotifyIcon`（无可见窗口/控件），早期错误提示走纯 Win32 消息框；应用图标是本地嵌入的开源 SVG 资源，不联网、不引包。
 - **天气三级缓存**：按城市缓存 3 分钟 + 单航班（并发同一城市只打一次上游）+ 失败回退旧缓存，响应带 `cached` / `cacheAgeSeconds`。
 - **汇率单航班 + 启动预热**：服务就绪即在后台拉一次汇率，首次换算不再等 1.3 秒。
 - **猫咪接口**：品种列表 30 分钟缓存 + 单航班；最近 20 张图留作上游故障兜底（标 `stale`）；连接超时 2 秒、总超时 6 秒；密钥只从本机环境变量 / `.env.local` 读取。
@@ -174,14 +203,18 @@ cp .env.example .env.local
 │   ├── IControllerUi.cs          # 界面抽象（WPF 窗口 / 托盘 / 命令行共用同一套启停逻辑）
 │   ├── MainWindow.xaml           # WPF 主窗口（冷调文档感：状态卡 / 按钮排 / 实时日志 / 控件模板）
 │   ├── MainWindow.xaml.cs        # 窗口展示与事件转发
-│   ├── WindowShell.cs            # WPF 宿主：Application + Dispatcher + 托盘 + 状态轮询 + 日志回流
-│   ├── UiSettings.cs             # 启动偏好持久化（logs/ui-settings.json）
+│   ├── SettingsWindow.xaml(.cs)  # 设置弹窗：启动偏好 / 关闭行为 / 关于与图标许可
+│   ├── WindowShell.cs            # WPF 宿主：Application + Dispatcher + 托盘 + 状态轮询 + 设置保存
+│   ├── AppIcons.cs               # 从嵌入线稿合成深靛应用图标与绿/灰/红托盘三态
+│   ├── UiSettings.cs             # 设置项持久化（logs/ui-settings.json）
+│   ├── assets/                   # 开源图标资源：app.ico / glyph.png / icons/*.svg + NOTICE.md
 │   ├── TrayShell.cs              # 纯托盘回退：图标、右键菜单、气泡提示、日志落盘
 │   ├── NativeMethods.cs          # 纯 Win32 消息框（早期错误提示）
 │   ├── ConsoleHost.cs            # WinExe 下按需挂控制台（--console 回退用）
 │   ├── ConsoleShell.cs           # 窗口交互命令、精简日志渲染
 │   └── ServiceBuild.cs           # 编译封装
-├── logs/                         # 控制器日志与启动偏好（已被忽略）
+├── tools/make_icon.py            # 从 vendored SVG 重新生成 app.ico 与 glyph.png
+├── logs/                         # 控制器日志与设置（已被忽略）
 ├── .env.example                  # 密钥配置示例（占位值，可入库）
 ├── .env.local                    # 本机真实密钥（已被忽略，不入库）
 ├── start.cmd / start.sh          # 一键启动（已编译则跳过编译）

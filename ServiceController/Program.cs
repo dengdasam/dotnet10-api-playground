@@ -154,7 +154,7 @@ void Alert(string title, string text)
 }
 
 // 启动偏好：默认不自动打开浏览器（已有主窗口，点「打开页面」即可）。
-// 窗口里的勾选框写入 logs/ui-settings.json；命令行开关可临时覆盖。
+// 主窗口「设置」弹窗写入 logs/ui-settings.json；命令行开关可临时覆盖。
 var settings = UiSettings.Load(root);
 var forceBrowser = args.Any(a => a.Equals("--open-browser", StringComparison.OrdinalIgnoreCase));
 var noBrowser = args.Any(a => a.Equals("--no-browser", StringComparison.OrdinalIgnoreCase));
@@ -164,7 +164,8 @@ var modeName = consoleMode ? "命令行" : trayMode ? "托盘" : "窗口";
 // 把实际收到的参数写进日志：排查「为什么又自己开了浏览器」这类问题全靠这一行
 Say($"[{DateTime.Now:HH:mm:ss}] 启动参数：{(args.Length == 0 ? "（无）" : string.Join(" ", args))}"
     + $"｜模式：{modeName}｜自动打开页面：{(autoOpenBrowser ? "是" : "否")}"
-    + $"（配置值 {(settings.AutoOpenBrowser ? "是" : "否")}）");
+    + $"（配置值 {(settings.AutoOpenBrowser ? "是" : "否")}）"
+    + $"｜点 × 关闭窗口：{(settings.ExitOnClose ? "退出并停止服务" : "最小化到托盘")}");
 
 // ---------- 重复启动保护 ----------
 // 之前重复双击 exe 时，第二个实例会在 Kestrel 绑定时抛 IOException（address already in use），

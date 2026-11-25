@@ -1,0 +1,158 @@
+<Window x:Class="ServiceController.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="设置 · ApiPlayground"
+        Width="500" Height="600" MinWidth="450" MinHeight="560"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="#F7F9FA" Foreground="#22272B"
+        FontFamily="Microsoft YaHei UI" FontSize="13"
+        SnapsToDevicePixels="True">
+    <Window.Resources>
+        <ControlTemplate x:Key="BtnTemplate" TargetType="Button">
+            <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="4" Padding="{TemplateBinding Padding}"
+                    SnapsToDevicePixels="True">
+                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True"/>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Bd" Property="Background" Value="#F1F5F7"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter TargetName="Bd" Property="Background" Value="#E8EEF1"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <ControlTemplate x:Key="BtnPrimaryTemplate" TargetType="Button">
+            <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="4" Padding="{TemplateBinding Padding}"
+                    SnapsToDevicePixels="True">
+                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True"/>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Bd" Property="Background" Value="#314C59"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter TargetName="Bd" Property="Background" Value="#2A414C"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <Style x:Key="Btn" TargetType="Button">
+            <Setter Property="Template" Value="{StaticResource BtnTemplate}"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="#3B5A6A"/>
+            <Setter Property="BorderBrush" Value="#E2E7EB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="14,0"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style x:Key="BtnPrimary" TargetType="Button">
+            <Setter Property="Template" Value="{StaticResource BtnPrimaryTemplate}"/>
+            <Setter Property="Background" Value="#3B5A6A"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#3B5A6A"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="14,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+        </Style>
+
+        <ControlTemplate x:Key="ChkTemplate" TargetType="CheckBox">
+            <StackPanel Orientation="Horizontal" Background="Transparent">
+                <Border x:Name="Box" Width="15" Height="15" CornerRadius="3"
+                        Background="#FFFFFF" BorderBrush="#C9D2D8" BorderThickness="1"
+                        VerticalAlignment="Center">
+                    <Path x:Name="Tick" Data="M 2,7 L 6,11 L 12,3"
+                          Stroke="#3B5A6A" StrokeThickness="2"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                          Width="14" Height="14" Stretch="None" Visibility="Collapsed"
+                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center" RecognizesAccessKey="True"/>
+            </StackPanel>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter TargetName="Tick" Property="Visibility" Value="Visible"/>
+                    <Setter TargetName="Box" Property="BorderBrush" Value="#3B5A6A"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+    </Window.Resources>
+
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+            <TextBlock Text="设置" FontSize="20" FontWeight="Medium" Foreground="#22272B"/>
+            <TextBlock Text="点「保存」写入 logs/ui-settings.json；启动偏好下次双击 exe 时生效"
+                       Foreground="#8A959C" FontSize="11" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <Border Background="#FFFFFF" BorderBrush="#E2E7EB" BorderThickness="1"
+                        CornerRadius="6" Padding="14" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="启动" FontWeight="Medium" Foreground="#22272B" Margin="0,0,0,10"/>
+                        <CheckBox x:Name="ChkAutoOpen" Content="启动时自动打开浏览器调试页"
+                                  Template="{StaticResource ChkTemplate}" OverridesDefaultStyle="True"
+                                  Foreground="#22272B" Cursor="Hand"/>
+                        <TextBlock Text="关闭后双击 exe 只显示主窗口，需点「打开页面」才开浏览器；命令行 --open-browser / --no-browser 可临时覆盖。"
+                                   Foreground="#8A959C" FontSize="11" Margin="23,9,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Background="#FFFFFF" BorderBrush="#E2E7EB" BorderThickness="1"
+                        CornerRadius="6" Padding="14" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="关闭窗口" FontWeight="Medium" Foreground="#22272B" Margin="0,0,0,4"/>
+                        <TextBlock Text="点右上角 × 时的行为" Foreground="#66727B" FontSize="11.5" Margin="0,0,0,10"/>
+                        <ComboBox x:Name="CmbClose" Height="30" Background="#FFFFFF"
+                                  BorderBrush="#E2E7EB" BorderThickness="1" Padding="9,0"
+                                  VerticalContentAlignment="Center" FontSize="12.5" Foreground="#22272B">
+                            <ComboBoxItem Content="最小化到托盘，服务继续运行"/>
+                            <ComboBoxItem Content="退出并停止服务，释放 5188 / 5180 端口"/>
+                        </ComboBox>
+                        <TextBlock x:Name="CloseHint" Foreground="#8A959C" FontSize="11"
+                                   Margin="0,9,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Background="#FFFFFF" BorderBrush="#E2E7EB" BorderThickness="1"
+                        CornerRadius="6" Padding="14">
+                    <StackPanel>
+                        <TextBlock Text="关于" FontWeight="Medium" Foreground="#22272B" Margin="0,0,0,10"/>
+                        <TextBlock x:Name="CreditText" Foreground="#3B5A6A" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="图形仅做白色重涂与纯色圆角底合成，许可不变；完整 ISC 许可文本见 assets/icons/NOTICE.md。"
+                                   Foreground="#8A959C" FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Text=".NET 10 · WPF 主窗口 · 零 NuGet 依赖 · 单文件发布"
+                                   Foreground="#8A959C" FontSize="11" Margin="0,6,0,0"/>
+                        <Button x:Name="BtnNotice" Content="查看许可文件" Style="{StaticResource Btn}"
+                                HorizontalAlignment="Left" Margin="0,10,0,0" Width="112"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button x:Name="BtnCancel" Content="取消" Style="{StaticResource Btn}" Width="88"/>
+            <Button x:Name="BtnSave" Content="保存" Style="{StaticResource BtnPrimary}" Width="88"/>
+        </StackPanel>
+    </Grid>
+</Window>
