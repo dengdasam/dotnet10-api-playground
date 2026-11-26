@@ -76,10 +76,11 @@ internal sealed class WindowShell : IControllerUi
     {
         try
         {
-            _appIcon = AppIcons.MakeIcon(PrimaryColor);
-            _icoRunning = AppIcons.MakeIcon(GreenColor);
-            _icoStopped = AppIcons.MakeIcon(GrayColor);
-            _icoError = AppIcons.MakeIcon(RedColor);
+            // 窗口/任务栏：128px 画布 + 80% 图形 + 小圆角，和系统里其它应用图标一个视觉体量
+            _appIcon = AppIcons.MakeIcon(PrimaryColor, 128, 0.80f, 0.16f);
+            _icoRunning = AppIcons.MakeIcon(GreenColor, 32, 0.72f, 0.20f);
+            _icoStopped = AppIcons.MakeIcon(GrayColor, 32, 0.72f, 0.20f);
+            _icoError = AppIcons.MakeIcon(RedColor, 32, 0.72f, 0.20f);
 
             _app = new System.Windows.Application { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
             _window = new MainWindow(
@@ -244,9 +245,33 @@ internal sealed class WindowShell : IControllerUi
         {
             Icon = _icoStopped,
             Text = "ApiPlayground · 启动中",
-            ContextMenuStrip = _menu,
+            // 不设 ContextMenuStrip：WPF 消息泵下 NotifyIcon 的自动右键偶尔不触发，
+            // 改为在 MouseUp 里手动 Show，时机更确定（见 ShowTrayMenu）。
         };
         _tray.DoubleClick += (_, _) => ShowWindow();
+        _tray.MouseUp += (_, e) =>
+        {
+            if (e.Button == Forms.MouseButtons.Right) ShowTrayMenu();
+        };
+    }
+
+    /// <summary>
+    /// 托盘右键菜单：手动 Show(鼠标位置)，再点一次右键则收起。
+    /// 比依赖 NotifyIcon.ContextMenuStrip 自动弹出稳定——后者在 WPF 消息泵下会偶发不弹。
+    /// </summary>
+    private void ShowTrayMenu()
+    {
+        try
+        {
+            // 先确保旧菜单已关闭再弹：偶发的 Visible 残留会让「再点一次」变成只关闭不打开
+            if (_menu.Visible) _menu.Close();
+            _menu.Show(Forms.Cursor.Position);
+            AppendAll($"[{Now}] 托盘菜单已打开");
+        }
+        catch (Exception ex)
+        {
+            AppendAll($"[{Now}] ✖ 托盘菜单打开失败：{ex.Message}");
+        }
     }
 
     // ---------- 状态轮询 ----------

@@ -54,9 +54,9 @@ internal sealed class TrayShell : IControllerUi
         try
         {
             _marshal.CreateControl();
-            _icoRunning = AppIcons.MakeIcon(Drawing.Color.FromArgb(46, 125, 79));    // 运行中：绿
-            _icoStopped = AppIcons.MakeIcon(Drawing.Color.FromArgb(154, 165, 171));  // 已停止：灰
-            _icoError = AppIcons.MakeIcon(Drawing.Color.FromArgb(192, 57, 43));      // 异常退出：红
+            _icoRunning = AppIcons.MakeIcon(Drawing.Color.FromArgb(46, 125, 79), 32, 0.72f, 0.20f);    // 运行中：绿
+            _icoStopped = AppIcons.MakeIcon(Drawing.Color.FromArgb(154, 165, 171), 32, 0.72f, 0.20f);  // 已停止：灰
+            _icoError = AppIcons.MakeIcon(Drawing.Color.FromArgb(192, 57, 43), 32, 0.72f, 0.20f);      // 异常退出：红
 
             BuildMenu();
             _tray.Icon = _icoStopped;

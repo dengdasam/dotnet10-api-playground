@@ -43,10 +43,14 @@ internal static class AppIcons
         }
     }
 
-    /// <summary>生成 32×32 HICON：纯色圆角方块 + 居中的白色线稿（占 66%）。</summary>
-    public static Drawing.Icon MakeIcon(Drawing.Color color)
+    /// <summary>
+    /// 生成 HICON：纯色圆角方块 + 居中的白色线稿。
+    /// 托盘用 32 / 0.66 / 0.22（小尺寸要留边距，免得线条贴边）；
+    /// 窗口与任务栏用 128 / 0.74 / 0.18——占比更满、圆角更小，和系统里其它应用图标一个视觉体量。
+    /// </summary>
+    public static Drawing.Icon MakeIcon(Drawing.Color color, int size = 32,
+        float glyphRatio = 0.66f, float cornerRatio = 0.22f)
     {
-        const int size = 32;
         using var bmp = new Drawing.Bitmap(size, size);
         using (var g = Drawing.Graphics.FromImage(bmp))
         {
@@ -54,7 +58,7 @@ internal static class AppIcons
             g.InterpolationMode = Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
             g.Clear(Drawing.Color.Transparent);
 
-            const float r = size * 0.22f;
+            var r = size * cornerRatio;
             using var path = new Drawing.Drawing2D.GraphicsPath();
             path.AddArc(0, 0, r * 2, r * 2, 180, 90);
             path.AddArc(size - r * 2, 0, r * 2, r * 2, 270, 90);
@@ -65,7 +69,7 @@ internal static class AppIcons
             g.FillPath(brush, path);
 
             var glyph = Glyph;
-            var side = (int)Math.Round(size * 0.66);
+            var side = (int)Math.Round(size * glyphRatio);
             var off = (size - side) / 2;
             g.DrawImage(glyph, new Drawing.Rectangle(off, off, side, side),
                 0, 0, glyph.Width, glyph.Height, Drawing.GraphicsUnit.Pixel);
