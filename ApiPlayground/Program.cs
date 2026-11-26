@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using ApiPlayground;
@@ -34,6 +35,11 @@ if (!isFirstBackend)
 builder.Services.AddSingleton<WeatherService>();
 builder.Services.AddSingleton<CatService>();
 builder.Services.AddSingleton<DogService>();
+builder.Services.AddSingleton<PostStore>();
+builder.Services.AddSingleton<JobService>();
+// batch 需要回调自己：用固定监听地址做 BaseAddress，绝不接受外部传入的 URL
+builder.Services.AddSingleton(new HttpClient { BaseAddress = new Uri(listenUrl), Timeout = TimeSpan.FromSeconds(10) });
+builder.Services.AddSingleton<BatchService>();
 
 // 日志级别：直接 dotnet run 时默认 Warning（压测里每个请求 4 行 Info 的同步 I/O 比业务本身还贵）；
 // 从控制台窗口拉起时控制器会注入 API_LOG_LEVEL=Information，窗口里就能看到请求流水。
@@ -100,6 +106,29 @@ var endpoints = new EndpointInfo[]
     new("POST",     "/api/tools/base64",     "工具", "同上，按 POST JSON 计一条，目录与实际路由数一致"),
     new("GET·POST", "/api/tools/json",       "工具", "JSON 格式化 / 压缩 / 校验（含嵌套深度与字节统计）"),
     new("POST",     "/api/tools/json",       "工具", "同上，按 POST JSON 计一条，目录与实际路由数一致"),
+
+    // ---- POST 实验：请求体、上传与工具 ----
+    new("POST",     "/api/echo",              "请求体", "原样回显请求体、Content-Type、请求头与字节数"),
+    new("POST",     "/api/forms/upload",      "请求体", "multipart 表单与文件上传（单文件 2 MB，返回 SHA-256）"),
+    new("POST",     "/api/tools/hash",        "工具",   "同上，POST body 支持长文本（{ text, algo }）"),
+    new("POST",     "/api/tools/jwt",         "工具",   "JWT 解码（header / payload / 过期时间，不验签）"),
+    new("POST",     "/api/tools/regex",       "工具",   "正则匹配 / 替换 / 分割（带超时保护）"),
+    new("POST",     "/api/tools/text",        "工具",   "命名风格转换、URL/HTML 转义、行排序去重"),
+    new("POST",     "/api/tools/diff",        "工具",   "两段文本逐行 diff（LCS）"),
+
+    // ---- POST 实验：资源、幂等与 Webhook ----
+    new("POST",     "/api/notes",             "资源",   "创建便签（201 + Location，支持 Idempotency-Key）"),
+    new("GET",      "/api/notes",             "资源",   "便签列表（关键字 / 标签过滤）"),
+    new("GET",      "/api/notes/{id}",        "资源",   "便签详情"),
+    new("DELETE",   "/api/notes/{id}",        "资源",   "删除便签"),
+    new("POST",     "/api/webhook",           "资源",   "接收 Webhook（任意 JSON，返回事件 id）"),
+    new("GET",      "/api/webhook/recent",    "资源",   "最近收到的 Webhook 事件"),
+
+    // ---- POST 实验：批量与异步 ----
+    new("POST",     "/api/batch",             "异步",   "一次提交多条内部 GET（最多 8 条，并发执行）"),
+    new("POST",     "/api/jobs",              "异步",   "提交模拟耗时任务，立即返回 jobId"),
+    new("GET",      "/api/jobs",              "异步",   "最近任务列表与当前并发数"),
+    new("GET",      "/api/jobs/{id}",         "异步",   "查询任务状态与进度"),
 
     // ---- 限流与流式 ----
     new("GET",      "/api/ratelimit",        "限流", "令牌桶限流演示（按 IP 计数，返回 X-RateLimit-* 头）"),
@@ -293,6 +322,125 @@ app.MapPost("/api/tools/json", async (HttpRequest request) =>
         var input = await ReadToolInputAsync(request);
         return ToolsService.Json(input.Text, input.Mode);
     }));
+
+// ---------- POST 实验：请求体与上传 ----------
+
+// 回显：把收到的请求原样拆开，调试 Content-Type / 头 / body 时不用再抓包
+app.MapPost("/api/echo", async (HttpRequest request) =>
+    await ApiWrap.RunAsync(() => PostLabService.EchoAsync(request)));
+
+// multipart 表单与文件上传：只做内存解析与 SHA-256，不落盘
+app.MapPost("/api/forms/upload", async (HttpRequest request) =>
+    await ApiWrap.RunAsync(() => PostLabService.UploadAsync(request)));
+
+// 哈希升级为 GET·POST：POST 走 JSON body，长文本不必挤在查询串里
+app.MapPost("/api/tools/hash", async (HttpRequest request) =>
+    await ApiWrap.RunAsync(async () =>
+    {
+        var body = await PostBody.ReadObjectAsync(request);
+        return ToolsService.Hash(body.Str("text"), body.Str("algo"));
+    }));
+
+// ---------- POST 实验：工具扩展 ----------
+
+app.MapPost("/api/tools/jwt", async (HttpRequest request) =>
+    await ApiWrap.RunAsync(async () =>
+    {
+        var body = await PostBody.ReadObjectAsync(request);
+        return PostLabService.Jwt(body.Str("token"));
+    }));
+
+app.MapPost("/api/tools/regex", async (HttpRequest request) =>
+    await ApiWrap.RunAsync(async () =>
+    {
+        var body = await PostBody.ReadObjectAsync(request);
+        return PostLabService.RegexRun(
+            body.Str("pattern"), body.Str("input"), body.Str("mode"), body.Str("replacement"),
+            body.Bool("ignoreCase"), body.Bool("multiline"), body.Int("timeoutMs", 500, 100, 2000));
+    }));
+
+app.MapPost("/api/tools/text", async (HttpRequest request) =>
+    await ApiWrap.RunAsync(async () =>
+    {
+        var body = await PostBody.ReadObjectAsync(request);
+        return PostLabService.Text(body.Str("text"), body.Str("op"));
+    }));
+
+app.MapPost("/api/tools/diff", async (HttpRequest request) =>
+    await ApiWrap.RunAsync(async () =>
+    {
+        var body = await PostBody.ReadObjectAsync(request);
+        return PostLabService.Diff(body.Str("left"), body.Str("right"));
+    }));
+
+// ---------- POST 实验：资源、幂等与 Webhook ----------
+
+// 创建便签：首次 201 + Location，重复带同一个 Idempotency-Key 则 200 并原样返回首次结果
+app.MapPost("/api/notes", async (HttpRequest request, HttpResponse response, PostStore store) =>
+{
+    var startedAt = Stopwatch.GetTimestamp();
+    try
+    {
+        var body = await PostBody.ReadObjectAsync(request);
+        var tags = body.TryGetValue("tags", out var tagEl) && tagEl.ValueKind == JsonValueKind.Array
+            ? tagEl.EnumerateArray()
+                     .Where(x => x.ValueKind == JsonValueKind.String)
+                     .Select(x => x.GetString() ?? "")
+                     .ToArray()
+            : [];
+
+        var (note, replay) = store.CreateNote(
+            body.Str("title"), body.Str("body"), tags, body.Bool("pinned"),
+            request.Headers["Idempotency-Key"].ToString());
+
+        if (!replay)
+            response.Headers.Location = "/api/notes/" + note.Id;
+
+        return ApiWrap.Raw(true, new { idempotentReplay = replay, note }, null, startedAt, replay ? 200 : 201);
+    }
+    catch (ApiException ex)
+    {
+        return ApiWrap.Raw(false, null, new ApiError(ex.Code, ex.Message), startedAt, 200);
+    }
+});
+
+app.MapGet("/api/notes", (string? q, string? tag, int? limit, PostStore store) =>
+    ApiWrap.Run(() => store.ListNotes(q, tag, limit ?? 20)));
+
+app.MapGet("/api/notes/{id}", (string id, PostStore store) =>
+    ApiWrap.Run(() => store.GetNote(id)));
+
+app.MapDelete("/api/notes/{id}", (string id, PostStore store) =>
+    ApiWrap.Run(() => store.DeleteNote(id)));
+
+// Webhook 接收端：任意 JSON 都收，记录后可从 /api/webhook/recent 查看
+app.MapPost("/api/webhook", async (HttpRequest request, PostStore store) =>
+    await ApiWrap.RunAsync(() => store.AddHookAsync(request)));
+
+app.MapGet("/api/webhook/recent", (int? limit, PostStore store) =>
+    ApiWrap.Run(() => store.RecentHooks(limit ?? 10)));
+
+// ---------- POST 实验：批量与异步 ----------
+
+app.MapPost("/api/batch", async (HttpRequest request, BatchService batch) =>
+{
+    var body = await PostBody.ReadObjectAsync(request);
+    var calls = BatchService.Parse(body);
+    return await ApiWrap.RunAsync(() => batch.RunAsync(calls));
+});
+
+app.MapPost("/api/jobs", async (HttpRequest request, JobService jobs) =>
+{
+    var body = await PostBody.ReadObjectAsync(request);
+    return ApiWrap.Run(() => jobs.Submit(
+        body.Str("name"), body.Int("durationMs", 3000, 500, 15_000), body.Bool("fail")));
+});
+
+app.MapGet("/api/jobs", (int? limit, JobService jobs) =>
+    ApiWrap.Run(() => jobs.List(limit ?? 10)));
+
+app.MapGet("/api/jobs/{id}", (string id, JobService jobs) =>
+    ApiWrap.Run(() => jobs.Get(id)));
 
 // ---------- 限流演示：令牌桶，按客户端 IP 独立计数 ----------
 // 只作用于本端点：全站限流会误伤页面初始化那批并行请求，也会让压测数字失去意义

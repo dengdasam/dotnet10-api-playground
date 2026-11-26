@@ -82,6 +82,32 @@
 | GET | `/api/config` | 当前生效的运行参数与环境变量名 |
 | GET | `/openapi.json` | OpenAPI 3.0 文档，可导入 Postman / Insomnia |
 
+### POST 接口（17 个）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/api/echo` | 原样回显请求体、Content-Type、请求头与字节数（自动识别 JSON / 表单 / 文本 / 二进制） |
+| POST | `/api/forms/upload` | multipart 文件上传（单文件 2 MB / 合计 4 MB，返回 SHA-256，不落盘） |
+| POST | `/api/tools/hash` | 同上，POST 走 JSON body 支持长文本（≤ 64 KB） |
+| POST | `/api/tools/jwt` | JWT 解码（header / payload / iat / exp，**不验签**） |
+| POST | `/api/tools/regex` | 正则 matches / replace / split，带 100~2000 ms 超时保护 |
+| POST | `/api/tools/text` | 命名风格、大小写、URL/HTML 转义、行排序去重、字符统计 |
+| POST | `/api/tools/diff` | 两段文本逐行 diff（LCS，单侧 ≤ 1000 行） |
+| POST | `/api/notes` | 创建便签（**201 + Location**，支持 `Idempotency-Key` 幂等重放） |
+| GET | `/api/notes?q=&tag=&limit=` | 便签列表（pinned 优先，关键字 / 标签过滤） |
+| GET | `/api/notes/{id}` | 便签详情 |
+| DELETE | `/api/notes/{id}` | 删除便签 |
+| POST | `/api/webhook` | 接收任意 JSON 回调（记录事件名、大小、来源 IP） |
+| GET | `/api/webhook/recent?limit=` | 最近 Webhook 事件（环形缓冲 50 条） |
+| POST | `/api/batch` | 一次提交多条内部 GET（≤ 8 条，单条 3 s / 整体 8 s 超时） |
+| POST | `/api/jobs` | 提交模拟耗时任务，**立即返回 jobId** |
+| GET | `/api/jobs?limit=` | 最近任务列表与当前并发数 |
+| GET | `/api/jobs/{id}` | 任务状态与进度 |
+
+`/api/notes`、`/api/webhook`、`/api/jobs` 都是**内存存储**，进程重启即清空——它们是演示用的有状态接口，刻意不写磁盘。`/api/batch` 只允许 `/api/` 下的 GET，且不能嵌套调用自身，避免被当成任意请求转发器。所有 POST body 统一上限 64 KB（上传单独 2 MB/文件）。
+
+调试页新增 4 个章节（13 请求体与上传 / 14 工具扩展 / 15 资源、幂等与 Webhook / 16 批量与异步），每个接口一张操作卡，可直接填参数、上传文件、连点观察幂等重放与任务进度。
+
 工具箱端点全部本地计算、零上游；限流只作用于演示端点自身；SSE 经 5188 也是逐条实时到达（控制器代理按块 flush）。运行参数可通过环境变量覆盖，完整清单见 [`ApiPlayground/README.md`](ApiPlayground/README.md) 的「配置外置」表。
 
 汇率走 <https://open.er-api.com> 公开接口（免 Key），以 USD 交叉换算；上游不可用时回落到内置快照，响应里 `provider` / `note` 会标明来源。狗狗接口走 <https://dogapi.dog>（官方免密钥）：283 个犬种的索引以仓库内置种子打底、后台按需刷新，冷启动不必等上游 1.84 MB 响应；图片来自 Wikimedia Commons，请保留 `attribution` 署名。
@@ -176,6 +202,7 @@ exe 文件图标、窗口标题栏、托盘三态都用同一个开源图形：*
 - **猫咪接口**：品种列表 30 分钟缓存 + 单航班；最近 20 张图留作上游故障兜底（标 `stale`）；连接超时 2 秒、总超时 6 秒；密钥只从本机环境变量 / `.env.local` 读取。
 - **狗狗接口**：dogapi.dog 官方免密钥。上游全量索引 1.84 MB、国内实测 15~40 秒，采用「内存索引 → 内置种子 → 7 天磁盘缓存」三层结构，冷启动毫秒级可用，后台单航班刷新；图片端点原样解析 302 的 `Location`。
 - **单实例保护**：控制器与主服务各按端口加命名互斥体，重复双击不会崩，只会把已有实例的主窗口调到前台，也不会两个后端分走请求。
+- **POST 实验接口**：所有 JSON body 统一 64 KB 上限与错误码（`BODY_TOO_LARGE` / `INVALID_JSON` / `INVALID_BODY`）；正则带超时保护，灾难性回溯返回 `REGEX_TIMEOUT` 而不是卡死线程；便签用 `Idempotency-Key` 做幂等重放（24 小时窗口，命中返回首次结果且不重复创建）；批量调用只允许内部 GET，并有单条 3 秒 / 整体 8 秒双超时；任务队列最多 4 并发、保留 60 条。全部内存实现，重启清空。
 - **父子联动**：主服务通过 `API_PARENT_PID` 反向监视控制器，控制器被强杀也会自行退出。
 - **反代正确处理 body**：转发前先读成字节数组，避免 POST 丢包；响应改为按 8 KB 块转发并逐块 flush，SSE 才能逐条实时到达浏览器。
 - **请求日志中间件**：只记 `/api` 调用的一行摘要，写进固定大小的环形缓冲，不存请求体/响应体；`/api/logs` 可查。
@@ -192,9 +219,13 @@ exe 文件图标、窗口标题栏、托盘三态都用同一个开源图形：*
 ├── ApiPlayground/                # 主服务（Minimal API，:5180）
 │   ├── Program.cs                # 端点注册、日志、单实例、父进程守护
 │   ├── ApiEnvelope.cs            # 统一响应信封
-│   ├── Services/                 # 天气 / 汇率 / 时间 / 单位 / 表达式 / 猫图 / 数字格式
+│   ├── Services/                 # 业务与工具服务
 │   │   ├── CatService.cs         # TheCatAPI 封装（密钥注入、缓存、降级）
-│   │   └── DogService.cs         # dogapi.dog 封装（免密钥；种子+磁盘缓存+单航班刷新）
+│   │   ├── DogService.cs         # dogapi.dog 封装（免密钥；种子+磁盘缓存+单航班刷新）
+│   │   ├── PostBody.cs           # POST 请求体读取（64 KB 上限、统一错误码）
+│   │   ├── PostLabService.cs     # echo / 上传 / JWT / 正则 / 文本变换 / diff
+│   │   ├── PostStore.cs          # 便签 CRUD + Idempotency-Key + Webhook 环形缓冲
+│   │   └── JobService.cs         # 异步任务队列 + 批量内部调用
 │   ├── wwwroot/index.html        # 调试页（双栏文档站，单文件零依赖）
 │   └── README.md                 # 主服务详细文档（接口、缓存、性能）
 ├── ServiceController/            # 控制器（:5188，页面 + 反代 + 进程管理）

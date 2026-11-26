@@ -158,7 +158,7 @@ dotnet run --project ServiceController
 
 换句话说：**窗口就是应用本体，开窗即启动、关窗即全停，不需要也不会有后台服务常驻。**
 
-## 接口清单（21 组 / 22 个端点）
+## 接口清单（51 条目录 / 44 个路径）
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -193,8 +193,27 @@ dotnet run --project ServiceController
 | GET | `/api/logs?limit=30` | 最近请求日志（环形缓冲，状态码 / 耗时 / 路径摘要） |
 | GET | `/api/config` | 当前生效的运行参数与对应环境变量名 |
 | GET | `/openapi.json` | OpenAPI 3.0 文档，可直接导入 Postman / Insomnia |
+| POST | `/api/echo` | 原样回显请求体、Content-Type、请求头与字节数 |
+| POST | `/api/forms/upload` | multipart 上传（单文件 2 MB / 合计 4 MB，返回 SHA-256，不落盘） |
+| POST | `/api/tools/hash` | 文本哈希的 POST 版，body 支持长文本（≤ 64 KB） |
+| POST | `/api/tools/jwt` | JWT 解码（不验签），解出 iat / nbf / exp 与过期判断 |
+| POST | `/api/tools/regex` | 正则 matches / replace / split，带超时保护 |
+| POST | `/api/tools/text` | 命名风格 / 大小写 / URL·HTML 转义 / 行排序去重 / 字符统计 |
+| POST | `/api/tools/diff` | 逐行 LCS diff（单侧 ≤ 1000 行） |
+| POST | `/api/notes` | 创建便签，201 + Location；`Idempotency-Key` 幂等重放 |
+| GET | `/api/notes?q=&tag=&limit=` | 便签列表（pinned 优先，关键字 / 标签过滤） |
+| GET | `/api/notes/{id}` | 便签详情 |
+| DELETE | `/api/notes/{id}` | 删除便签 |
+| POST | `/api/webhook` | 接收任意 JSON 回调，记录事件名 / 大小 / 来源 IP |
+| GET | `/api/webhook/recent?limit=` | 最近 Webhook 事件（环形缓冲 ≤ 50 条） |
+| POST | `/api/batch` | 批量内部 GET（≤ 8 条，单条 3 s / 整体 8 s 超时） |
+| POST | `/api/jobs` | 提交模拟耗时任务，立即返回 jobId |
+| GET | `/api/jobs?limit=` | 最近任务列表与当前并发数 |
+| GET | `/api/jobs/{id}` | 任务状态与进度 |
 
-`GET·POST` 的两个工具端点在 `/api` 目录里各占两条（一条组合、一条 POST），因此目录条数 34 与实际注册的路由数一致。POST 时 `text` / `mode` / `urlSafe` 既可放 query，也可放 JSON body；若 body 是一段不带 `text` 字段的 JSON 原文，则整段当作输入（方便直接贴一段 JSON 去格式化）。
+`GET·POST` 的两个工具端点在 `/api` 目录里各占两条（一条组合、一条 POST），因此目录条数 51 与实际注册的路由数一致。POST 时 `text` / `mode` / `urlSafe` 既可放 query，也可放 JSON body；若 body 是一段不带 `text` 字段的 JSON 原文，则整段当作输入（方便直接贴一段 JSON 去格式化）。
+
+便签、Webhook 与任务队列都是**内存存储**，进程重启即清空。`/api/batch` 只允许 `/api/` 下的 GET，且不能嵌套调用自身。
 
 ### 2026-11-24：套餐 ②＋③ 新增能力
 

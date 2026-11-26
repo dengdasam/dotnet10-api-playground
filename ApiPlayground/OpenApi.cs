@@ -33,6 +33,9 @@ public static partial class OpenApi
         ["/api/stream/ticks"]   = [("count", "integer", "推送事件数，默认 6"), ("intervalMs", "integer", "事件间隔毫秒，默认 400")],
         ["/api/logs"]           = [("limit", "integer", "返回条数，默认 30")],
         ["/api/calculator"]     = [("expression", "string", "数学表达式（GET 方式）")],
+        ["/api/notes"]          = [("q", "string", "标题/正文关键字"), ("tag", "string", "标签过滤"), ("limit", "integer", "1~100，默认 20")],
+        ["/api/webhook/recent"] = [("limit", "integer", "1~50，默认 10")],
+        ["/api/jobs"]           = [("limit", "integer", "1~60，默认 10")],
     };
 
     private static readonly Dictionary<string, string> Bodies = new()
@@ -40,6 +43,16 @@ public static partial class OpenApi
         ["/api/calculator"] = "{\"expression\":\"1+2*(3-4)/5\"}",
         ["/api/tools/base64"] = "{\"text\":\"你好，API\",\"mode\":\"encode\"}",
         ["/api/tools/json"] = "{\"text\":\"{\\\"a\\\":1,\\\"b\\\":[1,2]}\",\"mode\":\"format\"}",
+        ["/api/echo"] = "{\"hello\":\"world\",\"items\":[1,2,3]}",
+        ["/api/tools/hash"] = "{\"text\":\"hello, API Playground\",\"algo\":\"sha256\"}",
+        ["/api/tools/jwt"] = "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c\"}",
+        ["/api/tools/regex"] = "{\"pattern\":\"(?<word>[A-Za-z]+)\",\"input\":\"hello world\",\"mode\":\"matches\",\"ignoreCase\":true}",
+        ["/api/tools/text"] = "{\"text\":\"helloWorld\",\"op\":\"snake\"}",
+        ["/api/tools/diff"] = "{\"left\":\"a\\nb\\nc\",\"right\":\"a\\nB\\nc\"}",
+        ["/api/notes"] = "{\"title\":\"第一条便签\",\"body\":\"hello\",\"tags\":[\"demo\",\"post\"],\"pinned\":false}",
+        ["/api/webhook"] = "{\"event\":\"order.created\",\"id\":42,\"amount\":99.5}",
+        ["/api/batch"] = "{\"requests\":[{\"path\":\"/api/health\"},{\"path\":\"/api/time/now?tz=UTC\"}]}",
+        ["/api/jobs"] = "{\"name\":\"导出报表\",\"durationMs\":3000,\"fail\":false}",
     };
 
     [GeneratedRegex(@"\{(\w+)\}")]
@@ -98,7 +111,7 @@ public static partial class OpenApi
             });
         }
 
-        if (Queries.TryGetValue(ep.Path, out var qs))
+        if (ep.Method.Contains("GET", StringComparison.Ordinal) && Queries.TryGetValue(ep.Path, out var qs))
         {
             foreach (var (name, type, note) in qs)
             {
@@ -129,20 +142,47 @@ public static partial class OpenApi
             ["responses"] = responses,
         };
 
-        if (Bodies.TryGetValue(ep.Path, out var example) && ep.Method.Contains("POST", StringComparison.Ordinal))
+        if (ep.Method.Contains("POST", StringComparison.Ordinal))
         {
-            op["requestBody"] = new
+            if (ep.Path == "/api/forms/upload")
             {
-                required = true,
-                content = new Dictionary<string, object>
+                // multipart 上传不能给 JSON 示例，单独声明
+                op["requestBody"] = new
                 {
-                    ["application/json"] = new
+                    required = true,
+                    content = new Dictionary<string, object>
                     {
-                        schema = new { type = "object" },
-                        example = System.Text.Json.JsonDocument.Parse(example).RootElement.Clone()
+                        ["multipart/form-data"] = new
+                        {
+                            schema = new
+                            {
+                                type = "object",
+                                properties = new
+                                {
+                                    file = new { type = "string", format = "binary", description = "要上传的文件（单个 ≤ 2 MB，合计 ≤ 4 MB）" },
+                                    note = new { type = "string", description = "可选的文本字段" }
+                                }
+                            },
+                            example = new { note = "hello from OpenAPI" }
+                        }
                     }
-                }
-            };
+                };
+            }
+            else if (Bodies.TryGetValue(ep.Path, out var example))
+            {
+                op["requestBody"] = new
+                {
+                    required = true,
+                    content = new Dictionary<string, object>
+                    {
+                        ["application/json"] = new
+                        {
+                            schema = new { type = "object" },
+                            example = System.Text.Json.JsonDocument.Parse(example).RootElement.Clone()
+                        }
+                    }
+                };
+            }
         }
 
         // SSE 端点如实标出返回类型，Postman 里能看出这不是普通 JSON
