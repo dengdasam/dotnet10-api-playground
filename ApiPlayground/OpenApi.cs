@@ -26,7 +26,7 @@ public static partial class OpenApi
         ["/api/dogs/random"]    = [("breed", "string", "品种英文名，留空全库随机"), ("size", "string", "thumb/medium/large/full")],
         ["/api/dogs/image"]     = [("breed", "string", "品种英文名"), ("size", "string", "thumb/medium/large/full")],
         ["/api/dogs/facts"]     = [("limit", "integer", "1~5")],
-        ["/api/tools/uuid"]     = [("count", "integer", "1~50，默认 1"), ("upper", "integer", "1 = 大写"), ("hyphen", "integer", "0 = 去掉连字符")],
+        ["/api/tools/uuid"]     = [("version", "string", "1 / 3 / 4 / 5 / 7，默认 4"), ("count", "integer", "1~50，默认 1"), ("upper", "integer", "1 = 大写"), ("hyphen", "integer", "0 = 去掉连字符"), ("namespace", "string", "v3/v5 用：dns / url / oid / x500 或自定义 UUID"), ("name", "string", "v3/v5 用：参与哈希的名称")],
         ["/api/tools/hash"]     = [("text", "string", "要计算的内容"), ("algo", "string", "md5/sha1/sha256/sha512")],
         ["/api/tools/base64"]   = [("text", "string", "原文或 Base64 文本"), ("mode", "string", "encode/decode"), ("urlSafe", "integer", "1 = URL 安全变体")],
         ["/api/tools/json"]     = [("text", "string", "JSON 文本"), ("mode", "string", "format/minify/validate")],

@@ -71,7 +71,7 @@
 | GET | `/api/dogs/image?size=large` | 解析上游 302 图片地址 |
 | GET | `/api/dogs/facts?limit=3` | 随机趣闻（上游 no-store，每次不同） |
 | GET | `/api/dogs/groups` | 犬种分组统计（AKC 9 组） |
-| GET | `/api/tools/uuid?count=3` | 批量生成 v4 UUID（1~50 个） |
+| GET | `/api/tools/uuid?version=7&count=3` | 生成 v1 / v3 / v4 / v5 / v7（1~50 个，v7 时间有序） |
 | GET | `/api/tools/hash?text=&algo=sha256` | 文本哈希（md5 / sha1 / sha256 / sha512） |
 | GET·POST | `/api/tools/base64?text=&mode=encode` | Base64 编解码（支持 URL 安全变体） |
 | GET·POST | `/api/tools/json?text=&mode=format` | JSON 美化 / 压缩 / 校验 |

@@ -31,28 +31,184 @@ public static class ToolsService
 
     // ---------- UUID ----------
 
-    public static object Uuid(string? countRaw, string? upperRaw, string? hyphenRaw)
+    private static readonly DateTimeOffset GregorianEpoch = new(1582, 10, 15, 0, 0, 0, TimeSpan.Zero);
+
+    public static object Uuid(string? countRaw, string? upperRaw, string? hyphenRaw,
+        string? versionRaw, string? namespaceRaw, string? nameRaw)
     {
         var count = Int(countRaw, 1, 1, 50);
         var upper = Flag(upperRaw);
         var hyphen = hyphenRaw is null || Flag(hyphenRaw);   // 默认带连字符
+        var version = (versionRaw ?? "4").Trim().ToLowerInvariant().TrimStart('v');
+
+        if (version is not ("1" or "3" or "4" or "5" or "7"))
+            throw new ApiException("INVALID_VERSION",
+                $"不支持的 UUID 版本「{versionRaw}」，可选 1 / 3 / 4 / 5 / 7（也可写 v4）");
+
+        var name = nameRaw ?? "";
+        var ns = Guid.Empty;
+        if (version is "3" or "5")
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                throw new ApiException("MISSING_NAME",
+                    $"v{version} 是「命名 UUID」，需要 namespace + name；请在 name 里给出名称");
+            ns = ParseNamespace(namespaceRaw);
+        }
 
         var items = new string[count];
         for (var i = 0; i < count; i++)
         {
-            var text = hyphen ? Guid.NewGuid().ToString("D") : Guid.NewGuid().ToString("N");
+            var g = version switch
+            {
+                "1" => NewV1(),
+                "3" => NamedUuid(ns, name, 3),
+                "4" => Guid.NewGuid(),
+                "5" => NamedUuid(ns, name, 5),
+                _ => NewV7()
+            };
+            var text = hyphen ? g.ToString("D") : g.ToString("N");
             items[i] = upper ? text.ToUpperInvariant() : text;
         }
 
         return new
         {
+            version = "v" + version,
             count,
             format = hyphen ? "8-4-4-4-12（带连字符）" : "32 位无连字符",
             upperCase = upper,
+            namespaceId = version is "3" or "5" ? $"{NamespaceLabel(namespaceRaw)} / {ns:D}" : null,
+            name = version is "3" or "5" ? name : null,
             items,
-            version = "UUID v4（随机，来自 Guid.NewGuid）"
+            spec = VersionSpec(version),
+            note = VersionNote(version)
         };
     }
+
+    /// <summary>RFC 4122 v1：60 位 100ns 时间戳 + 14 位时钟序列 + 48 位节点（随机，隐私友好）。</summary>
+    private static Guid NewV1()
+    {
+        var ticks = (DateTimeOffset.UtcNow - GregorianEpoch).Ticks;
+        Span<byte> b = stackalloc byte[16];
+        RandomNumberGenerator.Fill(b);
+
+        b[0] = (byte)(ticks >> 24);
+        b[1] = (byte)(ticks >> 16);
+        b[2] = (byte)(ticks >> 8);
+        b[3] = (byte)ticks;
+        b[4] = (byte)(ticks >> 40);
+        b[5] = (byte)(ticks >> 32);
+        b[6] = (byte)(((ticks >> 56) & 0x0F) | 0x10);
+        b[7] = (byte)(ticks >> 48);
+        b[8] = (byte)((b[8] & 0x3F) | 0x80);   // variant 10
+        b[10] |= 0x01;                          // 随机节点：多播位置 1，表示不是真实 MAC
+
+        return new Guid(b, bigEndian: true);
+    }
+
+    /// <summary>
+    /// RFC 9562 v7：48 位毫秒时间戳 + 12 位 rand_a（同毫秒内递增，保证单调）+ 62 位随机。
+    /// .NET 内置的 CreateVersion7 在同一毫秒内用随机 rand_a，连续生成不保证有序，所以自己实现。
+    /// </summary>
+    private static readonly object V7Gate = new();
+    private static long _v7LastMs;
+    private static int _v7Seq;
+
+    private static Guid NewV7()
+    {
+        var ms = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        int seq;
+        lock (V7Gate)
+        {
+            if (ms == _v7LastMs)
+            {
+                _v7Seq = (_v7Seq + 1) & 0x0FFF;        // 同毫秒内 +1
+            }
+            else
+            {
+                _v7LastMs = ms;
+                _v7Seq = RandomNumberGenerator.GetInt32(0, 0x1000);   // 新毫秒随机起点
+            }
+            seq = _v7Seq;
+        }
+
+        Span<byte> b = stackalloc byte[16];
+        RandomNumberGenerator.Fill(b);
+        b[0] = (byte)(ms >> 40);
+        b[1] = (byte)(ms >> 32);
+        b[2] = (byte)(ms >> 24);
+        b[3] = (byte)(ms >> 16);
+        b[4] = (byte)(ms >> 8);
+        b[5] = (byte)ms;
+        b[6] = (byte)(0x70 | ((seq >> 8) & 0x0F));    // version 7 + rand_a 高 4 位
+        b[7] = (byte)(seq & 0xFF);
+        b[8] = (byte)((b[8] & 0x3F) | 0x80);          // variant 10
+        return new Guid(b, bigEndian: true);
+    }
+
+    /// <summary>RFC 4122 v3/v5：hash(namespace + name)，v3 用 MD5、v5 用 SHA-1。</summary>
+    private static Guid NamedUuid(Guid ns, string name, int version)
+    {
+        Span<byte> nsBytes = stackalloc byte[16];
+        ns.TryWriteBytes(nsBytes, bigEndian: true, out _);
+        var nameBytes = Encoding.UTF8.GetBytes(name);
+
+        var input = new byte[16 + nameBytes.Length];
+        nsBytes.CopyTo(input);
+        nameBytes.CopyTo(input, 16);
+
+        Span<byte> hash = stackalloc byte[version == 3 ? 16 : 20];
+        if (version == 3) MD5.HashData(input, hash);
+        else SHA1.HashData(input, hash);
+
+        Span<byte> uuid = stackalloc byte[16];
+        hash[..16].CopyTo(uuid);
+        uuid[6] = (byte)((uuid[6] & 0x0F) | (version << 4));
+        uuid[8] = (byte)((uuid[8] & 0x3F) | 0x80);
+        return new Guid(uuid, bigEndian: true);
+    }
+
+    private static Guid ParseNamespace(string? raw)
+    {
+        var key = (raw ?? "dns").Trim().ToLowerInvariant();
+        return key switch
+        {
+            "" or "dns" => new Guid("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
+            "url" => new Guid("6ba7b811-9dad-11d1-80b4-00c04fd430c8"),
+            "oid" => new Guid("6ba7b812-9dad-11d1-80b4-00c04fd430c8"),
+            "x500" or "x.500" => new Guid("6ba7b814-9dad-11d1-80b4-00c04fd430c8"),
+            _ => Guid.TryParse(raw, out var custom)
+                ? custom
+                : throw new ApiException("INVALID_NAMESPACE",
+                    $"命名空间「{raw}」不合法，可选 dns / url / oid / x500，或直接给一个 UUID")
+        };
+    }
+
+    private static string NamespaceLabel(string? raw) => (raw ?? "dns").Trim().ToLowerInvariant() switch
+    {
+        "" or "dns" => "DNS",
+        "url" => "URL",
+        "oid" => "OID",
+        "x500" or "x.500" => "X500",
+        _ => "自定义命名空间"
+    };
+
+    private static string VersionSpec(string version) => version switch
+    {
+        "1" => "RFC 4122 v1：60 位时间戳 + 时钟序列 + 48 位节点（节点随机化，不暴露真实 MAC）",
+        "3" => "RFC 4122 v3：MD5(命名空间 + 名称)，确定性输出",
+        "4" => "RFC 4122 v4：122 位随机数，最常用但完全无序",
+        "5" => "RFC 4122 v5：SHA-1(命名空间 + 名称)，确定性输出，比 v3 更推荐",
+        _ => "RFC 9562 v7：48 位毫秒时间戳 + 随机位，按时间单调递增"
+    };
+
+    private static string VersionNote(string version) => version switch
+    {
+        "1" => "适合需要「生成时间 + 节点」信息的场景；时间可被反解，不适合暴露给用户",
+        "3" => "同一个 namespace + name 永远得到同一个 UUID（适合从业务键派生 ID）；MD5 已弱，新项目优先 v5",
+        "4" => "适合不需要排序的标识（会话、Trace ID）；做主键时随机写入会打散 B+ 树索引",
+        "5" => "同一个 namespace + name 永远得到同一个 UUID（适合从业务键派生 ID），SHA-1 比 v3 更稳",
+        _ => "适合数据库主键：按生成时间有序，写入集中在新页，索引更友好；同毫秒内仍保持单调"
+    };
 
     // ---------- 哈希 ----------
 

@@ -1,10 +1,15 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Drawing = System.Drawing;
 using Forms = System.Windows.Forms;
+using ContextMenu = System.Windows.Controls.ContextMenu;
+using MenuItem = System.Windows.Controls.MenuItem;
+using Media = System.Windows.Media;
 
 namespace ServiceController;
 
@@ -33,16 +38,16 @@ internal sealed class WindowShell : IControllerUi
     private readonly Func<Action<string>, IReadOnlyList<string>> _connect;
     private readonly Action _requestShutdown;
 
-    private readonly Forms.ContextMenuStrip _menu = new() { ShowImageMargin = false };
+    private readonly Forms.NotifyIcon _tray = new();
     private readonly TaskCompletionSource _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly List<string> _pending = [];
     private readonly object _pendingGate = new();
 
     private System.Windows.Application _app = null!;
     private MainWindow _window = null!;
-    private Forms.NotifyIcon _tray = null!;
+    private ContextMenu _trayMenu = null!;
     private DispatcherTimer _poll = null!;
-    private Forms.ToolStripMenuItem _miStatus = null!, _miStart = null!, _miStop = null!, _miBuild = null!;
+    private MenuItem _miStatus = null!, _miStart = null!, _miStop = null!, _miBuild = null!;
 
     private Drawing.Icon? _appIcon, _icoRunning, _icoStopped, _icoError;
     private long _logCursor;
@@ -216,38 +221,42 @@ internal sealed class WindowShell : IControllerUi
 
     private void BuildTray()
     {
-        _miStatus = new Forms.ToolStripMenuItem("状态：读取中…") { Enabled = false };
-        var miShow = new Forms.ToolStripMenuItem("显示主窗口", null, (_, _) => ShowWindow())
+        // 纯 WPF ContextMenu：WinForms 的 ContextMenuStrip 在 WPF 消息泵下会延迟、
+        // 偶尔同时出现两个下拉窗口——换成 WPF 自己的 Popup，与主窗口同一套 Dispatcher。
+        _trayMenu = new ContextMenu
         {
-            Font = new Drawing.Font(_menu.Font, Drawing.FontStyle.Bold),
+            Placement = PlacementMode.MousePoint,
+            StaysOpen = false,
+            HasDropShadow = true,
+            Background = new SolidColorBrush(Media.Color.FromRgb(0xFF, 0xFF, 0xFF)),
+            BorderBrush = new SolidColorBrush(Media.Color.FromRgb(0xE2, 0xE7, 0xEB)),
+            BorderThickness = new Thickness(1),
+            FontFamily = new Media.FontFamily("Microsoft YaHei UI"),
+            FontSize = 12.5,
         };
-        _miStart = new Forms.ToolStripMenuItem("启动服务", null, async (_, _) => await DoStartAsync());
-        _miStop = new Forms.ToolStripMenuItem("停止服务", null, async (_, _) => await DoStopAsync());
-        _miBuild = new Forms.ToolStripMenuItem("重新编译并重启", null, async (_, _) => await DoBuildAsync());
-        var miExit = new Forms.ToolStripMenuItem("退出（同时停止服务）", null, async (_, _) => await ExitAsync());
 
-        _menu.Items.AddRange([
-            _miStatus,
-            new Forms.ToolStripSeparator(),
-            miShow,
-            new Forms.ToolStripMenuItem("设置…", null, (_, _) => OpenSettings()),
-            new Forms.ToolStripMenuItem("打开调试页", null, (_, _) => OpenPage()),
-            new Forms.ToolStripSeparator(),
-            _miStart, _miStop, _miBuild,
-            new Forms.ToolStripSeparator(),
-            new Forms.ToolStripMenuItem("查看日志", null, (_, _) => OpenLog()),
-            new Forms.ToolStripMenuItem("打开日志文件夹", null, (_, _) => OpenFolder()),
-            new Forms.ToolStripSeparator(),
-            miExit,
-        ]);
+        _miStatus = new MenuItem { Header = "状态：读取中…", IsEnabled = false };
+        _miStart = TrayItem("启动服务", () => _ = DoStartAsync());
+        _miStop = TrayItem("停止服务", () => _ = DoStopAsync());
+        _miBuild = TrayItem("重新编译并重启", () => _ = DoBuildAsync());
 
-        _tray = new Forms.NotifyIcon
-        {
-            Icon = _icoStopped,
-            Text = "ApiPlayground · 启动中",
-            // 不设 ContextMenuStrip：WPF 消息泵下 NotifyIcon 的自动右键偶尔不触发，
-            // 改为在 MouseUp 里手动 Show，时机更确定（见 ShowTrayMenu）。
-        };
+        _trayMenu.Items.Add(_miStatus);
+        _trayMenu.Items.Add(new Separator());
+        _trayMenu.Items.Add(TrayItem("显示主窗口", ShowWindow, bold: true));
+        _trayMenu.Items.Add(TrayItem("设置…", OpenSettings));
+        _trayMenu.Items.Add(TrayItem("打开调试页", OpenPage));
+        _trayMenu.Items.Add(new Separator());
+        _trayMenu.Items.Add(_miStart);
+        _trayMenu.Items.Add(_miStop);
+        _trayMenu.Items.Add(_miBuild);
+        _trayMenu.Items.Add(new Separator());
+        _trayMenu.Items.Add(TrayItem("查看日志", OpenLog));
+        _trayMenu.Items.Add(TrayItem("打开日志文件夹", OpenFolder));
+        _trayMenu.Items.Add(new Separator());
+        _trayMenu.Items.Add(TrayItem("退出（同时停止服务）", () => _ = ExitAsync()));
+
+        _tray.Icon = _icoStopped;
+        _tray.Text = "ApiPlayground · 启动中";
         _tray.DoubleClick += (_, _) => ShowWindow();
         _tray.MouseUp += (_, e) =>
         {
@@ -255,18 +264,31 @@ internal sealed class WindowShell : IControllerUi
         };
     }
 
+    private static MenuItem TrayItem(string header, Action onClick, bool bold = false)
+    {
+        var item = new MenuItem
+        {
+            Header = header,
+            Padding = new Thickness(12, 5, 20, 5),
+            Foreground = new SolidColorBrush(Media.Color.FromRgb(0x22, 0x27, 0x2B)),
+        };
+        if (bold) item.FontWeight = FontWeights.Bold;
+        item.Click += (_, _) => onClick();
+        return item;
+    }
+
     /// <summary>
-    /// 托盘右键菜单：手动 Show(鼠标位置)，再点一次右键则收起。
-    /// 比依赖 NotifyIcon.ContextMenuStrip 自动弹出稳定——后者在 WPF 消息泵下会偶发不弹。
+    /// 托盘右键菜单：WPF ContextMenu 以鼠标位置弹出，先关再开避免连点残留。
+    /// 用纯 WPF 菜单是为了绕开 WinForms ToolStripDropDown 在 WPF 消息泵下的延迟与重复窗口。
     /// </summary>
     private void ShowTrayMenu()
     {
         try
         {
-            // 先确保旧菜单已关闭再弹：偶发的 Visible 残留会让「再点一次」变成只关闭不打开
-            if (_menu.Visible) _menu.Close();
-            _menu.Show(Forms.Cursor.Position);
-            AppendAll($"[{Now}] 托盘菜单已打开");
+            if (_trayMenu.IsOpen) _trayMenu.IsOpen = false;
+            _trayMenu.Placement = PlacementMode.MousePoint;
+            _trayMenu.IsOpen = true;
+            AppendAll($"[{Now}] 托盘菜单已打开（WPF）");
         }
         catch (Exception ex)
         {
@@ -307,14 +329,14 @@ internal sealed class WindowShell : IControllerUi
             var tip = $"ApiPlayground · {state}{(running ? $" · pid {_backend.Pid}" : "")}";
             _tray.Icon = crashed ? _icoError : running ? _icoRunning : _icoStopped;
             _tray.Text = tip.Length > 63 ? tip[..63] : tip;
-            _miStatus.Text = running && _backend.StartedAt is { } t
+            _miStatus.Header = running && _backend.StartedAt is { } t
                 ? $"服务运行中 · 已运行 {Duration(DateTimeOffset.Now - t)}"
                 : crashed ? "服务异常退出 · " + Shorten(message, 36)
                 : "服务已停止";
 
-            _miStart.Enabled = !running && !_busy;
-            _miStop.Enabled = running && !_busy;
-            _miBuild.Enabled = !_busy;
+            _miStart.IsEnabled = !running && !_busy;
+            _miStop.IsEnabled = running && !_busy;
+            _miBuild.IsEnabled = !_busy;
         }
         catch { /* 控件正在销毁时忽略 */ }
 
@@ -586,7 +608,7 @@ internal sealed class WindowShell : IControllerUi
     {
         try { _poll?.Stop(); } catch { }
         try { if (_tray is not null) { _tray.Visible = false; _tray.Dispose(); } } catch { }
-        try { _menu.Dispose(); } catch { }
+        try { if (_trayMenu is not null) _trayMenu.IsOpen = false; } catch { }
         AppIcons.Dispose();
     }
 

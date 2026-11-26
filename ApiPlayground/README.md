@@ -183,7 +183,7 @@ dotnet run --project ServiceController
 | GET | `/api/dogs/image?breed=&size=` | 解析上游 302 图片地址（不自动跟随重定向） |
 | GET | `/api/dogs/facts?limit=1..5` | 随机趣闻，上游 no-store，每次不同 |
 | GET | `/api/dogs/groups` | 犬种分组统计（AKC 9 组，由索引聚合） |
-| GET | `/api/tools/uuid?count=3&upper=0&hyphen=1` | 批量生成 v4 UUID（1~50 个，可选大写 / 去连字符） |
+| GET | `/api/tools/uuid?version=7&count=3&upper=0&hyphen=1` | 生成 v1 / v3 / v4 / v5 / v7（v7 时间有序；v3/v5 用 namespace+name 派生） |
 | GET | `/api/tools/hash?text=&algo=sha256` | 文本哈希：md5 / sha1 / sha256 / sha512，返回十六进制与 Base64 |
 | GET·POST | `/api/tools/base64?text=&mode=encode&urlSafe=0` | Base64 编解码，支持 URL 安全变体；非 UTF-8 结果改回十六进制展示 |
 | GET·POST | `/api/tools/json?text=&mode=format` | JSON 美化 / 压缩 / 校验，返回嵌套深度与字节数 |

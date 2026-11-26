@@ -624,15 +624,18 @@ details .result{margin-bottom:16px}
 <div class="sec" id="sec9"><span class="num">09</span><h2>开发者工具箱</h2><span class="tag">纯本地 · 零上游</span></div>
 
 <div class="item">
-<h3><span class="idx">16</span>批量生成 UUID <span class="note">GET</span></h3>
-<span class="path">GET /api/tools/uuid?count=3&amp;upper=0&amp;hyphen=1</span>
-<div class="why">生成 v4 UUID，一次最多 50 个，可选大写、可选去掉连字符。纯本地计算、不访问网络，所以是整套接口里最快的（微秒级）。</div>
+<h3><span class="idx">16</span>批量生成 UUID（v1 / v3 / v4 / v5 / v7） <span class="note">GET</span></h3>
+<span class="path">GET /api/tools/uuid?version=7&amp;count=3&amp;upper=0&amp;hyphen=1</span>
+<div class="why">五种版本一次到位：<b>v7</b> 按毫秒时间有序（数据库主键首选）、<b>v4</b> 纯随机（最常用但无序）、<b>v1</b> 时间戳 + 节点、<b>v3 / v5</b> 由 namespace + name 确定性派生（同一输入永远同一结果，v5 用 SHA-1 更稳）。纯本地计算、微秒级。</div>
 <div class="form-grid">
+<div class="field"><label for="uuid-version">版本</label><select id="uuid-version"><option value="7">v7 · 时间有序（推荐）</option><option value="4">v4 · 纯随机</option><option value="1">v1 · 时间戳 + 节点</option><option value="5">v5 · SHA-1 命名</option><option value="3">v3 · MD5 命名</option></select></div>
 <div class="field"><label for="uuid-count">数量（1~50）</label><input id="uuid-count" value="3" spellcheck="false"></div>
 <div class="field"><label for="uuid-upper">大小写</label><select id="uuid-upper"><option value="0">小写</option><option value="1">大写</option></select></div>
 <div class="field"><label for="uuid-hyphen">连字符</label><select id="uuid-hyphen"><option value="1">保留 8-4-4-4-12</option><option value="0">去掉</option></select></div>
+<div class="field"><label for="uuid-ns">命名空间（v3 / v5）</label><select id="uuid-ns"><option value="dns">dns · 6ba7b810…</option><option value="url">url · 6ba7b811…</option><option value="oid">oid · 6ba7b812…</option><option value="x500">x500 · 6ba7b814…</option></select></div>
+<div class="field full"><label for="uuid-name">名称 name（v3 / v5 必填）</label><input id="uuid-name" value="example.com" spellcheck="false"></div>
 </div>
-<div class="cmdrow"><span class="note">UUID v4，来自 Guid.NewGuid</span><button type="button" onclick="copyCode('uuid', this)">复制 cURL</button><button type="button" class="primary" onclick="run('uuid')">发送请求</button></div>
+<div class="cmdrow"><span class="note">v3/v5 结果固定；v7 同毫秒内也保持单调</span><button type="button" onclick="copyCode('uuid', this)">复制 cURL</button><button type="button" class="primary" onclick="run('uuid')">发送请求</button></div>
 <div class="res-head"><span class="pill" id="pill-uuid">尚未调用</span><span class="note" id="meta-uuid"></span></div>
 <pre class="result empty" id="res-uuid">点击「发送请求」查看响应。</pre>
 </div>
@@ -1183,9 +1186,14 @@ var SPECS = {
 
   /* ---- 开发者工具箱（本地计算） ---- */
   uuid:   { method:'GET', path:function(){
-              var p = [q('count', val('uuid-count') || '1')];
+              var v = val('uuid-version') || '7';
+              var p = [q('count', val('uuid-count') || '1'), q('version', v)];
               if (val('uuid-upper') === '1') p.push(q('upper', '1'));
               if (val('uuid-hyphen') === '0') p.push(q('hyphen', '0'));
+              if (v === '3' || v === '5') {
+                p.push(q('namespace', val('uuid-ns') || 'dns'));
+                p.push(q('name', val('uuid-name') || 'example.com'));
+              }
               return '/api/tools/uuid?' + p.join('&'); } },
   hash:   { method:'GET', path:function(){ return '/api/tools/hash?' + [q('text', raw('hash-text')), q('algo', val('hash-algo') || 'sha256')].join('&'); } },
   b64:    { method:'POST', path:function(){ return '/api/tools/base64'; }, body:function(){
@@ -1261,6 +1269,22 @@ var SPECS = {
   jobget: { method:'GET', path:function(){ return '/api/jobs/' + encodeURIComponent((val('jg-id') || '').trim()); } },
   joblist:{ method:'GET', path:function(){ return '/api/jobs?' + q('limit', val('jl-limit') || '10'); } }
 };
+
+/* UUID 版本联动：只有 v3 / v5 需要 namespace + name，其它版本置灰避免误填 */
+function syncUuidFields(){
+  var v = val('uuid-version');
+  var need = v === '3' || v === '5';
+  ['uuid-ns', 'uuid-name'].forEach(function(id){
+    var el = $(id); if (!el) return;
+    el.disabled = !need;
+    var wrap = el.closest('.field');
+    if (wrap) wrap.style.opacity = need ? '1' : '.45';
+  });
+}
+(function(){
+  var uv = $('uuid-version');
+  if (uv) { uv.addEventListener('change', syncUuidFields); syncUuidFields(); }
+})();
 
 var calls = 0;
 
@@ -1616,7 +1640,7 @@ function summarize(name, d){
       case 'doggroups': return d.total + ' 个分组 · 共 ' + d.breedTotal + ' 个犬种 · 最大组 '
         + fmt(d.items[0] && d.items[0].nameZh) + ' ' + fmt(d.items[0] && d.items[0].breedCount) + ' 个';
       case 'dogall':    return '犬种索引 ' + d.total + ' 个 · ' + fmt(d.source) + ' · 已用于填充页面下拉';
-      case 'uuid':      return '生成 ' + d.count + ' 个 · ' + (d.items && d.items[0] ? d.items[0] : '—') + (d.upperCase ? ' · 大写' : '');
+      case 'uuid':      return fmt(d.version) + ' · ' + fmt(d.count) + ' 个 · ' + (d.items && d.items[0] ? d.items[0] : '—') + (d.upperCase ? ' · 大写' : '');
       case 'hash':      return fmt(d.algo) + ' · ' + String(fmt(d.hex)).slice(0, 32) + '… · ' + fmt(d.bits) + ' 位 · 输入 ' + fmt(d.inputBytes) + ' 字节';
       case 'b64':       return fmt(d.mode) + (d.urlSafe ? '（URL 安全）' : '') + ' · ' + String(fmt(d.output)).slice(0, 48) + (d.note ? ' · ' + d.note : '');
       case 'jsonfmt':   return fmt(d.mode) + ' · ' + fmt(d.inputBytes) + ' → ' + fmt(d.outputBytes) + ' 字节'

@@ -297,8 +297,9 @@ static async Task<(string? Text, string? Mode, string? UrlSafe)> ReadToolInputAs
 
 static bool Blank(string? s) => string.IsNullOrWhiteSpace(s);
 
-app.MapGet("/api/tools/uuid", (string? count, string? upper, string? hyphen) =>
-    ApiWrap.Run(() => ToolsService.Uuid(count, upper, hyphen)));
+app.MapGet("/api/tools/uuid", (string? count, string? upper, string? hyphen,
+        string? version, string? @namespace, string? name) =>
+    ApiWrap.Run(() => ToolsService.Uuid(count, upper, hyphen, version, @namespace, name)));
 
 app.MapGet("/api/tools/hash", (string? text, string? algo) =>
     ApiWrap.Run(() => ToolsService.Hash(text, algo)));
